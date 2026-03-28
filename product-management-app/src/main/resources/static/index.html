@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus | Premium Product Management</title>
+    <meta name="description" content="Manage your premium products with an elegant interface.">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar / Navigation -->
+        <aside class="sidebar">
+            <div class="logo">
+                <i class="fa-solid fa-cube"></i>
+                <span>Nexus</span>
+            </div>
+            <nav>
+                <ul>
+                    <li id="navDashboard" class="active"><i class="fa-solid fa-border-all"></i> Dashboard</li>
+                    <li><i class="fa-solid fa-box-open"></i> Inventory</li>
+                    <li id="navExcelSearch"><i class="fa-solid fa-file-excel"></i> Excel Search</li>
+                    <li><i class="fa-solid fa-chart-line"></i> Analytics</li>
+                    <li><i class="fa-solid fa-gear"></i> Settings</li>
+                </ul>
+            </nav>
+            <div class="user-profile">
+                <img src="https://ui-avatars.com/api/?name=Admin+User&background=6c63ff&color=fff" alt="User" />
+                <span>Admin User</span>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="topbar">
+                <div class="search-bar">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" id="searchInput" placeholder="Search products...">
+                </div>
+                <button id="addBtn" class="primary-btn"><i class="fa-solid fa-plus"></i> Add Product</button>
+            </header>
+
+            <div id="dashboardView">
+                <section class="dashboard-stats">
+                    <div class="stat-card">
+                        <div class="stat-info">
+                            <h3>Total Products</h3>
+                            <p id="totalProductsStat">0</p>
+                        </div>
+                        <div class="stat-icon"><i class="fa-solid fa-boxes-stacked"></i></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-info">
+                            <h3>Total Value</h3>
+                            <p id="totalValueStat">$0.00</p>
+                        </div>
+                        <div class="stat-icon"><i class="fa-solid fa-wallet"></i></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-info">
+                            <h3>Low Stock</h3>
+                            <p id="lowStockStat">0</p>
+                        </div>
+                        <div class="stat-icon critical"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                    </div>
+                </section>
+
+                <section class="products-section">
+                    <h2>Product Inventory</h2>
+                    <div class="table-container">
+                        <table id="productsTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Name & Description</th>
+                                    <th>Price</th>
+                                    <th>Quantity</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="productTableBody">
+                                <!-- Products will be injected here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+
+            <div id="excelSearchView" style="display: none;">
+                <section class="products-section">
+                    <h2>Excel Search</h2>
+                    <div class="glass-effect" style="padding: 24px; margin-bottom: 32px;">
+                        <form id="excelSearchForm" style="display: flex; gap: 16px; align-items: flex-end;">
+                            <div class="form-group" style="margin-bottom: 0; flex: 1;">
+                                <label for="excelFile">Upload Excel File (.xlsx, .xls)</label>
+                                <input type="file" id="excelFile" accept=".xlsx, .xls" required style="padding: 10px;">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0; flex: 1;">
+                                <label for="excelQuery">Search Value</label>
+                                <input type="text" id="excelQuery" required placeholder="Enter value to search...">
+                            </div>
+                            <button type="submit" class="primary-btn" id="excelSearchBtn" style="height: 44px;">
+                                <i class="fa-solid fa-magnifying-glass"></i> Search
+                            </button>
+                        </form>
+                    </div>
+
+                    <div id="excelResultMsg" style="margin-bottom: 16px; font-weight: 600;"></div>
+                    
+                    <div class="table-container" id="excelResultsContainer" style="display: none;">
+                        <table id="excelResultsTable">
+                            <tbody id="excelResultsBody">
+                                <!-- Excel search results will be injected here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal for Add/Edit -->
+    <div id="productModal" class="modal">
+        <div class="modal-content glass-effect">
+            <h2 id="modalTitle">Add New Product</h2>
+            <form id="productForm">
+                <input type="hidden" id="productId">
+                <div class="form-group">
+                    <label for="name">Product Name</label>
+                    <input type="text" id="name" required placeholder="e.g. MacBook Pro">
+                </div>
+                <div class="form-group">
+                    <label for="description">Description (Optional)</label>
+                    <textarea id="description" rows="3" placeholder="Brief details about the product..."></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="price">Price ($)</label>
+                        <input type="number" id="price" step="0.01" required placeholder="0.00">
+                    </div>
+                    <div class="form-group">
+                        <label for="quantity">Quantity</label>
+                        <input type="number" id="quantity" required placeholder="0">
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" id="cancelBtn" class="secondary-btn">Cancel</button>
+                    <button type="submit" class="primary-btn">Save Product</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast">Action Successful!</div>
+
+    <script src="app.js"></script>
+</body>
+</html>

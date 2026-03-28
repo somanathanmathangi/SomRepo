@@ -1,0 +1,5 @@
+com\example\productmanagementapp\ProductRepository.class
+com\example\productmanagementapp\ProductController.class
+com\example\productmanagementapp\ProductService.class
+com\example\productmanagementapp\Product.class
+com\example\productmanagementapp\Application.class
