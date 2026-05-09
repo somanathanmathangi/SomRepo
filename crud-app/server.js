@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const sqlite3 = require('sqlite3').verbose();
+const { Pool } = require('pg');
 const path = require('path');
 const crypto = require('crypto');
 
@@ -13,135 +13,134 @@ app.use(express.json());
 // Serve static files from the public directory
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Initialize SQLite database
-const db = new sqlite3.Database('./trips.db', (err) => {
-  if (err) {
-    console.error('Error opening database', err.message);
-  } else {
-    console.log('Connected to the SQLite database.');
-    db.run(`CREATE TABLE IF NOT EXISTS trips (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      invoiceDate TEXT,
-      invoiceNo TEXT,
-      travellingPerson TEXT,
-      travelDate TEXT,
-      tripCode TEXT
-    )`);
-  }
+// Initialize PostgreSQL database connection pool
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false // Required for Render's external connections, but often fine for internal too
 });
+
+// Initialize database table
+async function initDb() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS trips (
+        id SERIAL PRIMARY KEY,
+        invoiceDate TEXT,
+        invoiceNo TEXT,
+        travellingPerson TEXT,
+        travelDate TEXT,
+        tripCode TEXT
+      )
+    `);
+    console.log('Connected to the PostgreSQL database and initialized table.');
+  } catch (err) {
+    console.error('Error initializing database', err.stack);
+  }
+}
+initDb();
 
 function generateTripCode() {
   return "TRIP-" + crypto.randomUUID().substring(0, 8).toUpperCase();
 }
 
 // API Endpoints
-app.get('/api/trips', (req, res) => {
-  db.all('SELECT * FROM trips', [], (err, rows) => {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
-    res.json(rows);
-  });
+app.get('/api/trips', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM trips ORDER BY id ASC');
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.get('/api/trips/search', (req, res) => {
+app.get('/api/trips/search', async (req, res) => {
   const keyword = req.query.keyword;
   if (!keyword) {
     res.json([]);
     return;
   }
-  const query = `
-    SELECT * FROM trips 
-    WHERE invoiceNo LIKE ? OR travellingPerson LIKE ? OR tripCode LIKE ?
-  `;
-  const param = `%${keyword}%`;
-  db.all(query, [param, param, param], (err, rows) => {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
-    res.json(rows);
-  });
+  try {
+    const query = `
+      SELECT * FROM trips 
+      WHERE invoiceNo ILIKE $1 OR travellingPerson ILIKE $1 OR tripCode ILIKE $1
+    `;
+    const param = `%${keyword}%`;
+    const result = await pool.query(query, [param]);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.get('/api/trips/:id', (req, res) => {
+app.get('/api/trips/:id', async (req, res) => {
   const id = req.params.id;
-  db.get('SELECT * FROM trips WHERE id = ?', [id], (err, row) => {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
-    if (!row) {
+  try {
+    const result = await pool.query('SELECT * FROM trips WHERE id = $1', [id]);
+    if (result.rows.length === 0) {
       res.status(404).send('Trip not found');
       return;
     }
-    res.json(row);
-  });
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.post('/api/trips', (req, res) => {
+app.post('/api/trips', async (req, res) => {
   const { invoiceDate, invoiceNo, travellingPerson, travelDate } = req.body;
   const tripCode = generateTripCode();
   
   const query = `
-    INSERT INTO trips (invoiceDate, invoiceNo, travellingPerson, travelDate, tripCode)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO trips ("invoicedate", "invoiceno", "travellingperson", "traveldate", "tripcode")
+    VALUES ($1, $2, $3, $4, $5)
+    RETURNING *
   `;
   
-  db.run(query, [invoiceDate, invoiceNo, travellingPerson, travelDate, tripCode], function(err) {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
-    res.json({
-      id: this.lastID,
-      invoiceDate,
-      invoiceNo,
-      travellingPerson,
-      travelDate,
-      tripCode
-    });
-  });
+  try {
+    // Postgres converts column names to lowercase if not quoted, so using quoted names just in case, but let's stick to lowercase in the code
+    const insertQuery = `
+      INSERT INTO trips (invoiceDate, invoiceNo, travellingPerson, travelDate, tripCode)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING *
+    `;
+    const result = await pool.query(insertQuery, [invoiceDate, invoiceNo, travellingPerson, travelDate, tripCode]);
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.put('/api/trips/:id', (req, res) => {
+app.put('/api/trips/:id', async (req, res) => {
   const id = req.params.id;
   const { invoiceDate, invoiceNo, travellingPerson, travelDate } = req.body;
   
-  // TripCode is typically not updated
   const query = `
     UPDATE trips 
-    SET invoiceDate = ?, invoiceNo = ?, travellingPerson = ?, travelDate = ?
-    WHERE id = ?
+    SET invoiceDate = $1, invoiceNo = $2, travellingPerson = $3, travelDate = $4
+    WHERE id = $5
+    RETURNING *
   `;
   
-  db.run(query, [invoiceDate, invoiceNo, travellingPerson, travelDate, id], function(err) {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
-    if (this.changes === 0) {
+  try {
+    const result = await pool.query(query, [invoiceDate, invoiceNo, travellingPerson, travelDate, id]);
+    if (result.rowCount === 0) {
       res.status(404).send('Trip not found');
       return;
     }
-    
-    // Fetch and return the updated row to match Spring behavior
-    db.get('SELECT * FROM trips WHERE id = ?', [id], (err, row) => {
-      res.json(row);
-    });
-  });
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.delete('/api/trips/:id', (req, res) => {
+app.delete('/api/trips/:id', async (req, res) => {
   const id = req.params.id;
-  db.run('DELETE FROM trips WHERE id = ?', [id], function(err) {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
+  try {
+    const result = await pool.query('DELETE FROM trips WHERE id = $1', [id]);
     res.status(200).send();
-  });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.listen(port, () => {
