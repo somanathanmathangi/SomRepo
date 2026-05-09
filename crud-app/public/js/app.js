@@ -98,12 +98,17 @@ async function createTrip() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         });
+        
+        const result = await response.json();
         if (response.ok) {
             resetForm();
             showSection('showAll');
+        } else {
+            alert('Failed to add trip: ' + (result.error || 'Unknown error'));
         }
     } catch (error) {
         console.error('Error creating trip:', error);
+        alert('Network error: ' + error.message);
     }
 }
 
@@ -118,12 +123,17 @@ async function updateTrip() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         });
+        
+        const result = await response.json();
         if (response.ok) {
             resetForm();
             showSection('showAll');
+        } else {
+            alert('Failed to update trip: ' + (result.error || 'Unknown error'));
         }
     } catch (error) {
         console.error('Error updating trip:', error);
+        alert('Network error: ' + error.message);
     }
 }
 
@@ -209,5 +219,46 @@ function validateData(data) {
         alert('Please fill all 4 fields!');
         return false;
     }
+
+    // Date format validation (YYYY-MM-DD)
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(data.invoiceDate)) {
+        alert('Invoice Date must be in YYYY-MM-DD format.');
+        return false;
+    }
+    if (!dateRegex.test(data.travelDate)) {
+        alert('Travel Date must be in YYYY-MM-DD format.');
+        return false;
+    }
+
+    // Validate real calendar dates and future dates
+    const invDate = new Date(data.invoiceDate);
+    const trvDate = new Date(data.travelDate);
+
+    if (isNaN(invDate.getTime())) {
+        alert('Invoice Date is not a valid calendar date.');
+        return false;
+    }
+    if (isNaN(trvDate.getTime())) {
+        alert('Travel Date is not a valid calendar date.');
+        return false;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Adjust validation dates to local timezone midnight to avoid timezone shift bugs
+    invDate.setMinutes(invDate.getMinutes() + invDate.getTimezoneOffset());
+    trvDate.setMinutes(trvDate.getMinutes() + trvDate.getTimezoneOffset());
+
+    if (invDate > today) {
+        alert('Invoice Date cannot be a future date.');
+        return false;
+    }
+    if (trvDate > today) {
+        alert('Travel Date cannot be a future date.');
+        return false;
+    }
+
     return true;
 }
