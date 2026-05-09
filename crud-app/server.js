@@ -35,11 +35,8 @@ function mapTrip(row) {
 
 async function initDb() {
   try {
-    // Drop the table to clear out any bad schema configurations from previous versions
-    await pool.query(`DROP TABLE IF EXISTS trips`);
-
     await pool.query(`
-      CREATE TABLE trips (
+      CREATE TABLE IF NOT EXISTS trips (
         id SERIAL PRIMARY KEY,
         invoicedate TEXT,
         invoiceno TEXT,
