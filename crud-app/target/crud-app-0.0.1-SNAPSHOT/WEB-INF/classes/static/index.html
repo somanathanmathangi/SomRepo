@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trip Management System</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Trip Manager</h1>
+
+        <!-- Navigation Tabs -->
+        <nav class="tabs">
+            <button class="tab-btn active" id="tabShowAll">Show all Trips</button>
+            <button class="tab-btn" id="tabRecord">Record Trip</button>
+            <button class="tab-btn" id="tabSearch">Search Trip</button>
+        </nav>
+
+        <!-- Search Section -->
+        <section id="sectionSearch" class="page-section hidden">
+            <div class="search-section">
+                <input type="text" id="searchInput" placeholder="Search by Invoice No, Person or Trip Code...">
+                <button class="btn btn-primary" onclick="searchTrips()">Search</button>
+                <button class="btn btn-cancel" id="clearSearch" onclick="fetchTrips()">Reset</button>
+            </div>
+        </section>
+
+        <!-- Record Section -->
+        <section id="sectionRecord" class="page-section hidden">
+            <div class="form-section">
+                <h3 id="formTitle">Record New Trip</h3>
+                <input type="hidden" id="tripId">
+                <div class="form-group">
+                    <label>Invoice Date</label>
+                    <input type="text" id="invoiceDate" placeholder="YYYY-MM-DD">
+                </div>
+                <div class="form-group">
+                    <label>Invoice No</label>
+                    <input type="text" id="invoiceNo" placeholder="Enter Invoice Number">
+                </div>
+                <div class="form-group">
+                    <label>Travelling Person</label>
+                    <input type="text" id="travellingPerson" placeholder="Enter Person Name">
+                </div>
+                <div class="form-group">
+                    <label>Travel Date</label>
+                    <input type="text" id="travelDate" placeholder="YYYY-MM-DD">
+                </div>
+                <div class="form-actions">
+                    <button class="btn btn-primary" id="addBtn" onclick="createTrip()">Add Trip Record</button>
+                    <button class="btn btn-update" id="updateBtn" onclick="updateTrip()">Update Trip Record</button>
+                    <button class="btn btn-secondary" id="clearBtn" onclick="resetForm()">Clear Fields</button>
+                    <button class="btn btn-cancel" id="cancelBtn" onclick="showSection('showAll')">Back to List</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Table Section -->
+        <section id="sectionShowAll" class="page-section">
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Trip Code</th>
+                            <th>Invoice Date</th>
+                            <th>Invoice No</th>
+                            <th>Travelling Person</th>
+                            <th>Travel Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tripList">
+                        <!-- Data will be injected here -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
