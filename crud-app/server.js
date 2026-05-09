@@ -12,7 +12,6 @@ app.use(express.json());
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Determine if we need SSL based on the URL. Render external URLs require SSL, internal do not.
 const dbUrl = process.env.DATABASE_URL || '';
 const needsSSL = dbUrl.includes('render.com') && !dbUrl.includes('.internal');
 
@@ -21,16 +20,29 @@ const pool = new Pool({
   ssl: needsSSL ? { rejectUnauthorized: false } : false
 });
 
+// Helper to map Postgres lowercase columns to frontend camelCase expectations
+function mapTrip(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    invoiceDate: row.invoicedate || row.invoiceDate,
+    invoiceNo: row.invoiceno || row.invoiceNo,
+    travellingPerson: row.travellingperson || row.travellingPerson,
+    travelDate: row.traveldate || row.travelDate,
+    tripCode: row.tripcode || row.tripCode
+  };
+}
+
 async function initDb() {
   try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS trips (
         id SERIAL PRIMARY KEY,
-        "invoiceDate" TEXT,
-        "invoiceNo" TEXT,
-        "travellingPerson" TEXT,
-        "travelDate" TEXT,
-        "tripCode" TEXT
+        invoicedate TEXT,
+        invoiceno TEXT,
+        travellingperson TEXT,
+        traveldate TEXT,
+        tripcode TEXT
       )
     `);
     console.log('Connected to the PostgreSQL database and initialized table.');
@@ -47,7 +59,7 @@ function generateTripCode() {
 app.get('/api/trips', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM trips ORDER BY id ASC');
-    res.json(result.rows);
+    res.json(result.rows.map(mapTrip));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -62,11 +74,11 @@ app.get('/api/trips/search', async (req, res) => {
   try {
     const query = `
       SELECT * FROM trips 
-      WHERE "invoiceNo" ILIKE $1 OR "travellingPerson" ILIKE $1 OR "tripCode" ILIKE $1
+      WHERE invoiceno ILIKE $1 OR travellingperson ILIKE $1 OR tripcode ILIKE $1
     `;
     const param = `%${keyword}%`;
     const result = await pool.query(query, [param]);
-    res.json(result.rows);
+    res.json(result.rows.map(mapTrip));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -80,7 +92,7 @@ app.get('/api/trips/:id', async (req, res) => {
       res.status(404).send('Trip not found');
       return;
     }
-    res.json(result.rows[0]);
+    res.json(mapTrip(result.rows[0]));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -92,12 +104,12 @@ app.post('/api/trips', async (req, res) => {
   
   try {
     const insertQuery = `
-      INSERT INTO trips ("invoiceDate", "invoiceNo", "travellingPerson", "travelDate", "tripCode")
+      INSERT INTO trips (invoicedate, invoiceno, travellingperson, traveldate, tripcode)
       VALUES ($1, $2, $3, $4, $5)
       RETURNING *
     `;
     const result = await pool.query(insertQuery, [invoiceDate, invoiceNo, travellingPerson, travelDate, tripCode]);
-    res.json(result.rows[0]);
+    res.json(mapTrip(result.rows[0]));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -109,7 +121,7 @@ app.put('/api/trips/:id', async (req, res) => {
   
   const query = `
     UPDATE trips 
-    SET "invoiceDate" = $1, "invoiceNo" = $2, "travellingPerson" = $3, "travelDate" = $4
+    SET invoicedate = $1, invoiceno = $2, travellingperson = $3, traveldate = $4
     WHERE id = $5
     RETURNING *
   `;
@@ -120,7 +132,7 @@ app.put('/api/trips/:id', async (req, res) => {
       res.status(404).send('Trip not found');
       return;
     }
-    res.json(result.rows[0]);
+    res.json(mapTrip(result.rows[0]));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
