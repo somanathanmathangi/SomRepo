@@ -33,7 +33,7 @@
                 <input type="hidden" id="tripId">
                 <div class="form-group">
                     <label>Invoice Date</label>
-                    <input type="text" id="invoiceDate" placeholder="YYYY-MM-DD">
+                    <input type="date" id="invoiceDate">
                 </div>
                 <div class="form-group">
                     <label>Invoice No</label>
@@ -45,8 +45,9 @@
                 </div>
                 <div class="form-group">
                     <label>Travel Date</label>
-                    <input type="text" id="travelDate" placeholder="YYYY-MM-DD">
+                    <input type="date" id="travelDate">
                 </div>
+                <div id="formError" style="color: #dc3545; font-weight: bold; margin-bottom: 15px; display: none;"></div>
                 <div class="form-actions">
                     <button class="btn btn-primary" id="addBtn" onclick="createTrip()">Add Trip Record</button>
                     <button class="btn btn-update" id="updateBtn" onclick="updateTrip()">Update Trip Record</button>

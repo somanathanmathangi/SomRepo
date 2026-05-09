@@ -104,11 +104,11 @@ async function createTrip() {
             resetForm();
             showSection('showAll');
         } else {
-            alert('Failed to add trip: ' + (result.error || 'Unknown error'));
+            showError('Failed to add trip: ' + (result.error || 'Unknown error'));
         }
     } catch (error) {
         console.error('Error creating trip:', error);
-        alert('Network error: ' + error.message);
+        showError('Network error: ' + error.message);
     }
 }
 
@@ -129,11 +129,11 @@ async function updateTrip() {
             resetForm();
             showSection('showAll');
         } else {
-            alert('Failed to update trip: ' + (result.error || 'Unknown error'));
+            showError('Failed to update trip: ' + (result.error || 'Unknown error'));
         }
     } catch (error) {
         console.error('Error updating trip:', error);
-        alert('Network error: ' + error.message);
+        showError('Network error: ' + error.message);
     }
 }
 
@@ -193,6 +193,7 @@ function editTrip(trip) {
 }
 
 function resetForm() {
+    clearError();
     tripIdInput.value = '';
     invoiceDateInput.value = '';
     invoiceNoInput.value = '';
@@ -214,20 +215,22 @@ function getFormData() {
     };
 }
 
-function validateData(data) {
-    if (!data.invoiceDate || !data.invoiceNo || !data.travellingPerson || !data.travelDate) {
-        alert('Please fill all 4 fields!');
-        return false;
-    }
+function showError(message) {
+    const errDiv = document.getElementById('formError');
+    errDiv.innerText = message;
+    errDiv.style.display = 'block';
+}
 
-    // Date format validation (YYYY-MM-DD)
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dateRegex.test(data.invoiceDate)) {
-        alert('Invoice Date must be in YYYY-MM-DD format.');
-        return false;
-    }
-    if (!dateRegex.test(data.travelDate)) {
-        alert('Travel Date must be in YYYY-MM-DD format.');
+function clearError() {
+    const errDiv = document.getElementById('formError');
+    errDiv.style.display = 'none';
+    errDiv.innerText = '';
+}
+
+function validateData(data) {
+    clearError();
+    if (!data.invoiceDate || !data.invoiceNo || !data.travellingPerson || !data.travelDate) {
+        showError('Please fill all 4 fields!');
         return false;
     }
 
@@ -236,11 +239,11 @@ function validateData(data) {
     const trvDate = new Date(data.travelDate);
 
     if (isNaN(invDate.getTime())) {
-        alert('Invoice Date is not a valid calendar date.');
+        showError('Invoice Date is not a valid date.');
         return false;
     }
     if (isNaN(trvDate.getTime())) {
-        alert('Travel Date is not a valid calendar date.');
+        showError('Travel Date is not a valid date.');
         return false;
     }
 
@@ -252,11 +255,11 @@ function validateData(data) {
     trvDate.setMinutes(trvDate.getMinutes() + trvDate.getTimezoneOffset());
 
     if (invDate > today) {
-        alert('Invoice Date cannot be a future date.');
+        showError('Invoice Date cannot be a future date.');
         return false;
     }
     if (trvDate > today) {
-        alert('Travel Date cannot be a future date.');
+        showError('Travel Date cannot be a future date.');
         return false;
     }
 
