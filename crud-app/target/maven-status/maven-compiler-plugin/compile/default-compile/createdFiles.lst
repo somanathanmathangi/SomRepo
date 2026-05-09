@@ -1,5 +1,0 @@
-com\example\crudapp\repository\TripRepository.class
-com\example\crudapp\CrudAppApplication.class
-com\example\crudapp\service\TripService.class
-com\example\crudapp\controller\TripController.class
-com\example\crudapp\model\TripRecord.class
