@@ -85,6 +85,28 @@ label {
     font-size: 14px;
 }
 
+.required-mark {
+    color: #c62828;
+    font-weight: 700;
+    margin-left: 3px;
+}
+
+.form-error,
+.inline-error {
+    color: #c62828;
+    font-weight: 600;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.form-error {
+    margin-bottom: 15px;
+}
+
+.inline-error {
+    margin-top: 8px;
+}
+
 input[type="text"], input[type="email"] { 
     width: 100%; 
     padding: 12px; 
@@ -240,7 +262,32 @@ th {
 .search-section { 
     margin-bottom: 25px; 
     display: flex; 
-    gap: 10px; 
-    max-width: 600px;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px; 
+    max-width: 640px;
     margin: 0 auto;
+}
+
+.search-field-wrap {
+    flex: 1 1 220px;
+    min-width: 0;
+}
+
+.search-field-wrap label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.search-field-wrap input[type="text"] {
+    width: 100%;
+}
+
+.search-actions {
+    display: flex;
+    gap: 10px;
+    flex-shrink: 0;
+    padding-bottom: 2px;
 }

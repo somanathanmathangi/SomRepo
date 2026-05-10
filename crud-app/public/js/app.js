@@ -27,6 +27,7 @@ const sectionSearch = document.getElementById('sectionSearch');
 document.addEventListener('DOMContentLoaded', () => {
     fetchTrips();
     setupNavigation();
+    searchInput.addEventListener('input', () => clearSearchError());
 });
 
 function setupNavigation() {
@@ -36,6 +37,9 @@ function setupNavigation() {
 }
 
 function showSection(sectionName) {
+    clearError();
+    clearSearchError();
+
     // Hide all sections
     sectionShowAll.classList.add('hidden');
     sectionRecord.classList.add('hidden');
@@ -71,20 +75,41 @@ async function fetchTrips() {
     }
 }
 
+function clearSearchError() {
+    const el = document.getElementById('searchError');
+    if (!el) return;
+    el.hidden = true;
+    el.textContent = '';
+}
+
+function showSearchError(message) {
+    const el = document.getElementById('searchError');
+    if (!el) return;
+    el.textContent = message;
+    el.hidden = false;
+}
+
+function clearSearchAndFetch() {
+    clearSearchError();
+    searchInput.value = '';
+    fetchTrips();
+}
+
 async function searchTrips() {
     const keyword = searchInput.value.trim();
     if (!keyword) {
-        fetchTrips();
+        showSearchError('Please enter a search term. This field is required.');
         return;
     }
+    clearSearchError();
     try {
         const response = await fetch(`${API_URL}/search?keyword=${encodeURIComponent(keyword)}`);
         const results = await response.json();
         renderTrips(results);
-        // Show results in the table section
         sectionShowAll.classList.remove('hidden');
     } catch (error) {
         console.error('Error searching:', error);
+        showSearchError('Search failed. Please try again.');
     }
 }
 
@@ -217,20 +242,30 @@ function getFormData() {
 
 function showError(message) {
     const errDiv = document.getElementById('formError');
-    errDiv.innerText = message;
-    errDiv.style.display = 'block';
+    errDiv.textContent = message;
+    errDiv.hidden = false;
 }
 
 function clearError() {
     const errDiv = document.getElementById('formError');
-    errDiv.style.display = 'none';
-    errDiv.innerText = '';
+    errDiv.hidden = true;
+    errDiv.textContent = '';
 }
 
 function validateData(data) {
     clearError();
-    if (!data.invoiceDate || !data.invoiceNo || !data.travellingPerson || !data.travelDate) {
-        showError('Please fill all 4 fields!');
+    const missing = [];
+    if (!data.invoiceDate) missing.push('Invoice Date');
+    if (!data.invoiceNo) missing.push('Invoice No');
+    if (!data.travellingPerson) missing.push('Travelling Person');
+    if (!data.travelDate) missing.push('Travel Date');
+    if (missing.length) {
+        const list = missing.join(', ');
+        showError(
+            missing.length === 1
+                ? `Please fill in the required field: ${list}.`
+                : `Please fill in all required fields. Missing: ${list}.`
+        );
         return false;
     }
 
