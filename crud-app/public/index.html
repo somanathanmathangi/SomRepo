@@ -31,9 +31,14 @@
             <div class="form-section">
                 <h3 id="formTitle">Record New Trip</h3>
                 <input type="hidden" id="tripId">
-                <div class="form-group">
-                    <label>Invoice Date</label>
-                    <input type="date" id="invoiceDate">
+                <div class="form-group form-group-date">
+                    <label for="invoiceDate">Invoice Date</label>
+                    <div class="date-field">
+                        <span class="date-field-icon" aria-hidden="true">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                        </span>
+                        <input type="date" id="invoiceDate" class="input-date" autocomplete="off">
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>Invoice No</label>
@@ -43,9 +48,14 @@
                     <label>Travelling Person</label>
                     <input type="text" id="travellingPerson" placeholder="Enter Person Name">
                 </div>
-                <div class="form-group">
-                    <label>Travel Date</label>
-                    <input type="date" id="travelDate">
+                <div class="form-group form-group-date">
+                    <label for="travelDate">Travel Date</label>
+                    <div class="date-field">
+                        <span class="date-field-icon" aria-hidden="true">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                        </span>
+                        <input type="date" id="travelDate" class="input-date" autocomplete="off">
+                    </div>
                 </div>
                 <div id="formError" style="color: #dc3545; font-weight: bold; margin-bottom: 15px; display: none;"></div>
                 <div class="form-actions">

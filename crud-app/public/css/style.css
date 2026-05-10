@@ -94,6 +94,79 @@ input[type="text"], input[type="email"] {
     font-size: 16px;
 }
 
+/* Date fields: icon rail + native picker, aligned with form typography */
+.form-group-date label {
+    color: #1c1e21;
+}
+
+.date-field {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    border-radius: 8px;
+    border: 1px solid #dddfe2;
+    background: #fff;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.date-field:hover {
+    border-color: #bcc0c4;
+}
+
+.date-field:focus-within {
+    border-color: #1877f2;
+    box-shadow: 0 0 0 3px rgba(24, 119, 242, 0.18);
+}
+
+.date-field-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 48px;
+    color: #1877f2;
+    background: linear-gradient(180deg, #f0f7ff 0%, #e7f3ff 100%);
+    border-radius: 7px 0 0 7px;
+    border-right: 1px solid #e4e6eb;
+}
+
+.input-date {
+    flex: 1;
+    min-width: 0;
+    padding: 12px 12px 12px 10px;
+    border: none;
+    border-radius: 0 7px 7px 0;
+    box-sizing: border-box;
+    font-size: 16px;
+    font-family: inherit;
+    font-variant-numeric: tabular-nums;
+    color: #1c1e21;
+    background: transparent;
+    color-scheme: light;
+    min-height: 48px;
+    cursor: pointer;
+}
+
+.input-date:focus {
+    outline: none;
+    box-shadow: none;
+}
+
+/* Chromium / Safari: soften and theme the calendar button */
+.input-date::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    padding: 6px;
+    margin-right: 2px;
+    border-radius: 6px;
+    opacity: 0.75;
+    transition: opacity 0.15s ease, background-color 0.15s ease;
+}
+
+.input-date::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+    background-color: #e7f3ff;
+}
+
 input:focus {
     border-color: #1877f2;
     outline: none;
