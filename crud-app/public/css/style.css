@@ -219,7 +219,7 @@ label {
     margin-top: 8px;
 }
 
-input[type="text"], input[type="email"] { 
+input[type="text"], input[type="email"], input[type="password"] { 
     width: 100%; 
     padding: 12px; 
     border: 1px solid #dddfe2; 
