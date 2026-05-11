@@ -1,302 +1,381 @@
 const API_URL = '/api/trips';
 
-// DOM Elements
 const tripList = document.getElementById('tripList');
-const invoiceDateInput = document.getElementById('invoiceDate');
-const invoiceNoInput = document.getElementById('invoiceNo');
-const travellingPersonInput = document.getElementById('travellingPerson');
-const travelDateInput = document.getElementById('travelDate');
-const tripIdInput = document.getElementById('tripId');
+const editingInvoiceKey = document.getElementById('editingInvoiceKey');
+const customerNameInput = document.getElementById('customerName');
+const customerLocationInput = document.getElementById('customerLocation');
+const poOrderInput = document.getElementById('poOrder');
+const poDateInput = document.getElementById('poDate');
+const travellerNameInput = document.getElementById('travellerName');
+const travelRouteInput = document.getElementById('travelRoute');
+const woNumberInput = document.getElementById('woNumber');
+const woDateInput = document.getElementById('woDate');
+const travelStartDateInput = document.getElementById('travelStartDate');
+const travelEndDateInput = document.getElementById('travelEndDate');
+const yantrikiInvoiceInput = document.getElementById('yantrikiInvoiceNumber');
+const pkReadonlyHint = document.getElementById('pkReadonlyHint');
 const addBtn = document.getElementById('addBtn');
 const updateBtn = document.getElementById('updateBtn');
 const cancelBtn = document.getElementById('cancelBtn');
 const formTitle = document.getElementById('formTitle');
 const searchInput = document.getElementById('searchInput');
 
-// Tab Buttons
 const tabShowAll = document.getElementById('tabShowAll');
 const tabRecord = document.getElementById('tabRecord');
 const tabSearch = document.getElementById('tabSearch');
 
-// Sections
 const sectionShowAll = document.getElementById('sectionShowAll');
 const sectionRecord = document.getElementById('sectionRecord');
 const sectionSearch = document.getElementById('sectionSearch');
 
-// Initialize
+const EMPTY_COLSPAN = 12;
+
+function esc(s) {
+  if (s == null) return '';
+  const d = document.createElement('div');
+  d.textContent = String(s);
+  return d.innerHTML;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-    fetchTrips();
-    setupNavigation();
-    searchInput.addEventListener('input', () => clearSearchError());
+  fetchTrips();
+  setupNavigation();
+  searchInput.addEventListener('input', () => clearSearchError());
 });
 
 function setupNavigation() {
-    tabShowAll.addEventListener('click', () => showSection('showAll'));
-    tabRecord.addEventListener('click', () => showSection('record'));
-    tabSearch.addEventListener('click', () => showSection('search'));
+  tabShowAll.addEventListener('click', () => showSection('showAll'));
+  tabRecord.addEventListener('click', () => showSection('record'));
+  tabSearch.addEventListener('click', () => showSection('search'));
 }
 
 function showSection(sectionName) {
-    clearError();
-    clearSearchError();
+  clearError();
+  clearSearchError();
 
-    // Hide all sections
-    sectionShowAll.classList.add('hidden');
-    sectionRecord.classList.add('hidden');
-    sectionSearch.classList.add('hidden');
-    
-    // Remove active class from all tabs
-    tabShowAll.classList.remove('active');
-    tabRecord.classList.remove('active');
-    tabSearch.classList.remove('active');
+  sectionShowAll.classList.add('hidden');
+  sectionRecord.classList.add('hidden');
+  sectionSearch.classList.add('hidden');
 
-    // Show selected section
-    if (sectionName === 'showAll') {
-        sectionShowAll.classList.remove('hidden');
-        tabShowAll.classList.add('active');
-        fetchTrips();
-    } else if (sectionName === 'record') {
-        sectionRecord.classList.remove('hidden');
-        tabRecord.classList.add('active');
-    } else if (sectionName === 'search') {
-        sectionSearch.classList.remove('hidden');
-        tabSearch.classList.add('active');
-    }
+  tabShowAll.classList.remove('active');
+  tabRecord.classList.remove('active');
+  tabSearch.classList.remove('active');
+
+  if (sectionName === 'showAll') {
+    sectionShowAll.classList.remove('hidden');
+    tabShowAll.classList.add('active');
+    fetchTrips();
+  } else if (sectionName === 'record') {
+    sectionRecord.classList.remove('hidden');
+    tabRecord.classList.add('active');
+  } else if (sectionName === 'search') {
+    sectionSearch.classList.remove('hidden');
+    tabSearch.classList.add('active');
+  }
 }
 
-// CRUD Functions
 async function fetchTrips() {
-    try {
-        const response = await fetch(API_URL);
-        const trips = await response.json();
-        renderTrips(trips);
-    } catch (error) {
-        console.error('Error fetching trips:', error);
-    }
+  try {
+    const response = await fetch(API_URL);
+    const trips = await response.json();
+    renderTrips(trips);
+  } catch (error) {
+    console.error('Error fetching trips:', error);
+  }
 }
 
 function clearSearchError() {
-    const el = document.getElementById('searchError');
-    if (!el) return;
-    el.hidden = true;
-    el.textContent = '';
+  const el = document.getElementById('searchError');
+  if (!el) return;
+  el.hidden = true;
+  el.textContent = '';
 }
 
 function showSearchError(message) {
-    const el = document.getElementById('searchError');
-    if (!el) return;
-    el.textContent = message;
-    el.hidden = false;
+  const el = document.getElementById('searchError');
+  if (!el) return;
+  el.textContent = message;
+  el.hidden = false;
 }
 
 function clearSearchAndFetch() {
-    clearSearchError();
-    searchInput.value = '';
-    fetchTrips();
+  clearSearchError();
+  searchInput.value = '';
+  fetchTrips();
 }
 
 async function searchTrips() {
-    const keyword = searchInput.value.trim();
-    if (!keyword) {
-        showSearchError('Please enter a search term. This field is required.');
-        return;
-    }
-    clearSearchError();
-    try {
-        const response = await fetch(`${API_URL}/search?keyword=${encodeURIComponent(keyword)}`);
-        const results = await response.json();
-        renderTrips(results);
-        sectionShowAll.classList.remove('hidden');
-    } catch (error) {
-        console.error('Error searching:', error);
-        showSearchError('Search failed. Please try again.');
-    }
+  const keyword = searchInput.value.trim();
+  if (!keyword) {
+    showSearchError('Please enter a search term. This field is required.');
+    return;
+  }
+  clearSearchError();
+  try {
+    const response = await fetch(
+      `${API_URL}/search?keyword=${encodeURIComponent(keyword)}`
+    );
+    const results = await response.json();
+    renderTrips(results);
+    sectionShowAll.classList.remove('hidden');
+  } catch (error) {
+    console.error('Error searching:', error);
+    showSearchError('Search failed. Please try again.');
+  }
+}
+
+function setPkFieldReadonly(isEdit) {
+  yantrikiInvoiceInput.readOnly = isEdit;
+  pkReadonlyHint.classList.toggle('hidden', !isEdit);
 }
 
 async function createTrip() {
-    const data = getFormData();
-    if (!validateData(data)) return;
+  const data = getFormData();
+  if (!validateData(data)) return;
 
-    try {
-        const response = await fetch(API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        });
-        
-        const result = await response.json();
-        if (response.ok) {
-            resetForm();
-            showSection('showAll');
-        } else {
-            showError('Failed to add trip: ' + (result.error || 'Unknown error'));
-        }
-    } catch (error) {
-        console.error('Error creating trip:', error);
-        showError('Network error: ' + error.message);
+  try {
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+
+    const result = await response.json().catch(() => ({}));
+    if (response.ok) {
+      resetForm();
+      showSection('showAll');
+    } else {
+      showError(result.error || 'Failed to add trip.');
     }
+  } catch (error) {
+    console.error('Error creating trip:', error);
+    showError('Network error: ' + error.message);
+  }
 }
 
 async function updateTrip() {
-    const id = tripIdInput.value;
-    const data = getFormData();
-    if (!validateData(data)) return;
+  const key = editingInvoiceKey.value;
+  const data = getFormData();
+  if (!validateData(data)) return;
+  if (!key) {
+    showError('Nothing to update.');
+    return;
+  }
 
-    try {
-        const response = await fetch(`${API_URL}/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        });
-        
-        const result = await response.json();
-        if (response.ok) {
-            resetForm();
-            showSection('showAll');
-        } else {
-            showError('Failed to update trip: ' + (result.error || 'Unknown error'));
-        }
-    } catch (error) {
-        console.error('Error updating trip:', error);
-        showError('Network error: ' + error.message);
+  try {
+    const response = await fetch(
+      `${API_URL}/${encodeURIComponent(key)}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      }
+    );
+
+    const result = await response.json().catch(() => ({}));
+    if (response.ok) {
+      resetForm();
+      showSection('showAll');
+    } else {
+      showError(result.error || 'Failed to update trip.');
     }
+  } catch (error) {
+    console.error('Error updating trip:', error);
+    showError('Network error: ' + error.message);
+  }
 }
 
-async function deleteTrip(id) {
-    if (!confirm('Are you sure you want to delete this trip record?')) return;
-    try {
-        const response = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
-        if (response.ok) {
-            fetchTrips();
-        }
-    } catch (error) {
-        console.error('Error deleting trip:', error);
+async function deleteTrip(invoiceKey) {
+  if (!confirm('Delete this trip record permanently?')) return;
+  try {
+    const response = await fetch(
+      `${API_URL}/${encodeURIComponent(invoiceKey)}`,
+      { method: 'DELETE' }
+    );
+    if (response.ok) {
+      fetchTrips();
+    } else {
+      const err = await response.json().catch(() => ({}));
+      alert(err.error || 'Delete failed.');
     }
+  } catch (error) {
+    console.error('Error deleting trip:', error);
+  }
 }
 
-// UI Helpers
 function renderTrips(data) {
-    tripList.innerHTML = '';
-    if (data.length === 0) {
-        tripList.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #8d949e; padding: 30px;">No trip records found.</td></tr>';
-        return;
-    }
-    data.forEach(trip => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td style="font-family: monospace; font-weight: bold; color: #1877f2;">${trip.tripCode}</td>
-            <td>${trip.invoiceDate}</td>
-            <td>${trip.invoiceNo}</td>
-            <td>${trip.travellingPerson}</td>
-            <td>${trip.travelDate}</td>
+  tripList.innerHTML = '';
+  if (data.length === 0) {
+    tripList.innerHTML = `<tr><td colspan="${EMPTY_COLSPAN}" class="table-empty">No trip records found.</td></tr>`;
+    return;
+  }
+  data.forEach((trip) => {
+    const tr = document.createElement('tr');
+    const inv = trip.yantrikiInvoiceNumber;
+    tr.innerHTML = `
+            <td class="cell-mono">${esc(inv)}</td>
+            <td>${esc(trip.customerName)}</td>
+            <td>${esc(trip.customerLocation)}</td>
+            <td>${esc(trip.poOrder)}</td>
+            <td>${esc(trip.poDate)}</td>
+            <td>${esc(trip.travellerName)}</td>
+            <td>${esc(trip.travelRoute)}</td>
+            <td>${esc(trip.woNumber)}</td>
+            <td>${esc(trip.woDate)}</td>
+            <td>${esc(trip.travelStartDate)}</td>
+            <td>${esc(trip.travelEndDate)}</td>
             <td class="actions">
-                <button class="btn btn-edit">Edit</button>
-                <button class="btn btn-delete">Delete</button>
+                <button type="button" class="btn btn-edit">Edit</button>
+                <button type="button" class="btn btn-delete">Delete</button>
             </td>
         `;
-        
-        tr.querySelector('.btn-edit').addEventListener('click', () => editTrip(trip));
-        tr.querySelector('.btn-delete').addEventListener('click', () => deleteTrip(trip.id));
-        
-        tripList.appendChild(tr);
-    });
+
+    tr.querySelector('.btn-edit').addEventListener('click', () => editTrip(trip));
+    tr
+      .querySelector('.btn-delete')
+      .addEventListener('click', () => deleteTrip(inv));
+
+    tripList.appendChild(tr);
+  });
 }
 
 function editTrip(trip) {
-    tripIdInput.value = trip.id;
-    invoiceDateInput.value = trip.invoiceDate;
-    invoiceNoInput.value = trip.invoiceNo;
-    travellingPersonInput.value = trip.travellingPerson;
-    travelDateInput.value = trip.travelDate;
+  editingInvoiceKey.value = trip.yantrikiInvoiceNumber;
+  customerNameInput.value = trip.customerName || '';
+  customerLocationInput.value = trip.customerLocation || '';
+  poOrderInput.value = trip.poOrder || '';
+  poDateInput.value = trip.poDate || '';
+  travellerNameInput.value = trip.travellerName || '';
+  travelRouteInput.value = trip.travelRoute || '';
+  woNumberInput.value = trip.woNumber || '';
+  woDateInput.value = trip.woDate || '';
+  travelStartDateInput.value = trip.travelStartDate || '';
+  travelEndDateInput.value = trip.travelEndDate || '';
+  yantrikiInvoiceInput.value = trip.yantrikiInvoiceNumber || '';
 
-    formTitle.innerText = `Update Trip ${trip.tripCode}`;
-    addBtn.style.display = 'none';
-    updateBtn.style.display = 'inline-block';
-    cancelBtn.style.display = 'inline-block';
-    
-    showSection('record');
+  setPkFieldReadonly(true);
+  formTitle.textContent = `Update Trip — ${trip.yantrikiInvoiceNumber}`;
+  addBtn.style.display = 'none';
+  updateBtn.style.display = 'inline-block';
+  cancelBtn.style.display = 'inline-block';
+
+  showSection('record');
 }
 
 function resetForm() {
-    clearError();
-    tripIdInput.value = '';
-    invoiceDateInput.value = '';
-    invoiceNoInput.value = '';
-    travellingPersonInput.value = '';
-    travelDateInput.value = '';
+  clearError();
+  editingInvoiceKey.value = '';
+  customerNameInput.value = '';
+  customerLocationInput.value = '';
+  poOrderInput.value = '';
+  poDateInput.value = '';
+  travellerNameInput.value = '';
+  travelRouteInput.value = '';
+  woNumberInput.value = '';
+  woDateInput.value = '';
+  travelStartDateInput.value = '';
+  travelEndDateInput.value = '';
+  yantrikiInvoiceInput.value = '';
 
-    formTitle.innerText = 'Record New Trip';
-    addBtn.style.display = 'inline-block';
-    updateBtn.style.display = 'none';
-    cancelBtn.style.display = 'none';
+  setPkFieldReadonly(false);
+  formTitle.textContent = 'Record New Trip';
+  addBtn.style.display = 'inline-block';
+  updateBtn.style.display = 'none';
+  cancelBtn.style.display = 'none';
 }
 
 function getFormData() {
-    return {
-        invoiceDate: invoiceDateInput.value.trim(),
-        invoiceNo: invoiceNoInput.value.trim(),
-        travellingPerson: travellingPersonInput.value.trim(),
-        travelDate: travelDateInput.value.trim()
-    };
+  return {
+    yantrikiInvoiceNumber: yantrikiInvoiceInput.value.trim(),
+    customerName: customerNameInput.value.trim(),
+    customerLocation: customerLocationInput.value.trim(),
+    poOrder: poOrderInput.value.trim(),
+    poDate: poDateInput.value.trim(),
+    travellerName: travellerNameInput.value.trim(),
+    travelRoute: travelRouteInput.value.trim(),
+    woNumber: woNumberInput.value.trim(),
+    woDate: woDateInput.value.trim(),
+    travelStartDate: travelStartDateInput.value.trim(),
+    travelEndDate: travelEndDateInput.value.trim()
+  };
 }
 
 function showError(message) {
-    const errDiv = document.getElementById('formError');
-    errDiv.textContent = message;
-    errDiv.hidden = false;
+  const errDiv = document.getElementById('formError');
+  errDiv.textContent = message;
+  errDiv.hidden = false;
 }
 
 function clearError() {
-    const errDiv = document.getElementById('formError');
-    errDiv.hidden = true;
-    errDiv.textContent = '';
+  const errDiv = document.getElementById('formError');
+  errDiv.hidden = true;
+  errDiv.textContent = '';
+}
+
+/** Parse YYYY-MM-DD from date inputs as local calendar date (avoids UTC shift). */
+function parseDateOnly(value) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value).trim());
+  if (!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return isNaN(d.getTime()) ? null : d;
 }
 
 function validateData(data) {
-    clearError();
-    const missing = [];
-    if (!data.invoiceDate) missing.push('Invoice Date');
-    if (!data.invoiceNo) missing.push('Invoice No');
-    if (!data.travellingPerson) missing.push('Travelling Person');
-    if (!data.travelDate) missing.push('Travel Date');
-    if (missing.length) {
-        const list = missing.join(', ');
-        showError(
-            missing.length === 1
-                ? `Please fill in the required field: ${list}.`
-                : `Please fill in all required fields. Missing: ${list}.`
-        );
-        return false;
-    }
+  clearError();
+  const labels = {
+    customerName: 'Customer Name',
+    customerLocation: 'Customer Location',
+    poOrder: 'PO Order',
+    poDate: 'PO Date',
+    travellerName: 'Traveller Name',
+    travelRoute: 'Travel Route',
+    woNumber: 'WO Number',
+    woDate: 'WO Date',
+    travelStartDate: 'Travel Start Date',
+    travelEndDate: 'Travel End Date',
+    yantrikiInvoiceNumber: 'Yantriki Invoice Number'
+  };
 
-    // Validate real calendar dates and future dates
-    const invDate = new Date(data.invoiceDate);
-    const trvDate = new Date(data.travelDate);
+  const missing = [];
+  for (const key of Object.keys(labels)) {
+    if (!data[key]) missing.push(labels[key]);
+  }
+  if (missing.length) {
+    const list = missing.join(', ');
+    showError(
+      missing.length === 1
+        ? `Please fill in the required field: ${list}.`
+        : `Please fill in all required fields. Missing: ${list}.`
+    );
+    return false;
+  }
 
-    if (isNaN(invDate.getTime())) {
-        showError('Invoice Date is not a valid date.');
-        return false;
-    }
-    if (isNaN(trvDate.getTime())) {
-        showError('Travel Date is not a valid date.');
-        return false;
-    }
+  const poD = parseDateOnly(data.poDate);
+  const woD = parseDateOnly(data.woDate);
+  const startD = parseDateOnly(data.travelStartDate);
+  const endD = parseDateOnly(data.travelEndDate);
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+  if (!poD) {
+    showError('PO Date is not a valid date.');
+    return false;
+  }
+  if (!woD) {
+    showError('WO Date is not a valid date.');
+    return false;
+  }
+  if (!startD) {
+    showError('Travel Start Date is not a valid date.');
+    return false;
+  }
+  if (!endD) {
+    showError('Travel End Date is not a valid date.');
+    return false;
+  }
 
-    // Adjust validation dates to local timezone midnight to avoid timezone shift bugs
-    invDate.setMinutes(invDate.getMinutes() + invDate.getTimezoneOffset());
-    trvDate.setMinutes(trvDate.getMinutes() + trvDate.getTimezoneOffset());
+  if (endD < startD) {
+    showError('Travel End Date must be on or after Travel Start Date.');
+    return false;
+  }
 
-    if (invDate > today) {
-        showError('Invoice Date cannot be a future date.');
-        return false;
-    }
-    if (trvDate > today) {
-        showError('Travel Date cannot be a future date.');
-        return false;
-    }
-
-    return true;
+  return true;
 }
