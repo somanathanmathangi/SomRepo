@@ -391,6 +391,10 @@ app.delete('/api/trips/:invoice', requireAuth, async (req, res) => {
   }
 });
 
+app.get(/^(?!\/api\/).*$/, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 async function start() {
