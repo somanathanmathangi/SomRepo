@@ -28,7 +28,7 @@ const sectionShowAll = document.getElementById('sectionShowAll');
 const sectionRecord = document.getElementById('sectionRecord');
 const sectionSearch = document.getElementById('sectionSearch');
 
-const EMPTY_COLSPAN = 12;
+const EMPTY_COLSPAN = 16;
 
 function esc(s) {
   if (s == null) return '';
@@ -37,7 +37,63 @@ function esc(s) {
   return d.innerHTML;
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+function formatAuditDate(iso) {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleString(undefined, {
+      dateStyle: 'short',
+      timeStyle: 'short'
+    });
+  } catch {
+    return '—';
+  }
+}
+
+async function apiFetch(url, options = {}) {
+  const res = await fetch(url, {
+    ...options,
+    credentials: 'same-origin',
+    headers: options.headers
+  });
+  if (res.status === 401) {
+    window.location.href = '/login.html';
+    throw new Error('Unauthorized');
+  }
+  return res;
+}
+
+async function initSession() {
+  const res = await fetch('/api/auth/me', { credentials: 'same-origin' });
+  if (!res.ok) {
+    window.location.href = '/login.html';
+    return false;
+  }
+  const data = await res.json();
+  const el = document.getElementById('navUser');
+  if (el) el.textContent = data.username;
+  return true;
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  if (!(await initSession())) return;
+
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', async () => {
+      try {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          credentials: 'same-origin'
+        });
+      } catch (e) {
+        /* ignore */
+      }
+      window.location.href = '/login.html';
+    });
+  }
+
   fetchTrips();
   setupNavigation();
   searchInput.addEventListener('input', () => clearSearchError());
@@ -76,10 +132,11 @@ function showSection(sectionName) {
 
 async function fetchTrips() {
   try {
-    const response = await fetch(API_URL);
+    const response = await apiFetch(API_URL);
     const trips = await response.json();
     renderTrips(trips);
   } catch (error) {
+    if (error.message === 'Unauthorized') return;
     console.error('Error fetching trips:', error);
   }
 }
@@ -112,13 +169,14 @@ async function searchTrips() {
   }
   clearSearchError();
   try {
-    const response = await fetch(
+    const response = await apiFetch(
       `${API_URL}/search?keyword=${encodeURIComponent(keyword)}`
     );
     const results = await response.json();
     renderTrips(results);
     sectionShowAll.classList.remove('hidden');
   } catch (error) {
+    if (error.message === 'Unauthorized') return;
     console.error('Error searching:', error);
     showSearchError('Search failed. Please try again.');
   }
@@ -134,7 +192,7 @@ async function createTrip() {
   if (!validateData(data)) return;
 
   try {
-    const response = await fetch(API_URL, {
+    const response = await apiFetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -148,6 +206,7 @@ async function createTrip() {
       showError(result.error || 'Failed to add trip.');
     }
   } catch (error) {
+    if (error.message === 'Unauthorized') return;
     console.error('Error creating trip:', error);
     showError('Network error: ' + error.message);
   }
@@ -163,7 +222,7 @@ async function updateTrip() {
   }
 
   try {
-    const response = await fetch(
+    const response = await apiFetch(
       `${API_URL}/${encodeURIComponent(key)}`,
       {
         method: 'PUT',
@@ -180,15 +239,21 @@ async function updateTrip() {
       showError(result.error || 'Failed to update trip.');
     }
   } catch (error) {
+    if (error.message === 'Unauthorized') return;
     console.error('Error updating trip:', error);
     showError('Network error: ' + error.message);
   }
 }
 
 async function deleteTrip(invoiceKey) {
-  if (!confirm('Delete this trip record permanently?')) return;
+  if (
+    !confirm(
+      'Delete this trip? It will disappear from the list; deleted by and date are stored for audit.'
+    )
+  )
+    return;
   try {
-    const response = await fetch(
+    const response = await apiFetch(
       `${API_URL}/${encodeURIComponent(invoiceKey)}`,
       { method: 'DELETE' }
     );
@@ -199,6 +264,7 @@ async function deleteTrip(invoiceKey) {
       alert(err.error || 'Delete failed.');
     }
   } catch (error) {
+    if (error.message === 'Unauthorized') return;
     console.error('Error deleting trip:', error);
   }
 }
@@ -224,6 +290,10 @@ function renderTrips(data) {
             <td>${esc(trip.woDate)}</td>
             <td>${esc(trip.travelStartDate)}</td>
             <td>${esc(trip.travelEndDate)}</td>
+            <td>${esc(trip.createdBy || '—')}</td>
+            <td>${esc(formatAuditDate(trip.createdDate))}</td>
+            <td>${esc(trip.updatedBy || '—')}</td>
+            <td>${esc(formatAuditDate(trip.updatedDate))}</td>
             <td class="actions">
                 <button type="button" class="btn btn-edit">Edit</button>
                 <button type="button" class="btn btn-delete">Delete</button>
@@ -312,7 +382,6 @@ function clearError() {
   errDiv.textContent = '';
 }
 
-/** Parse YYYY-MM-DD from date inputs as local calendar date (avoids UTC shift). */
 function parseDateOnly(value) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value).trim());
   if (!m) return null;

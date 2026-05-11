@@ -8,7 +8,14 @@
 </head>
 <body>
     <div class="container container-wide">
-        <h1>Trip Manager</h1>
+        <header class="app-header">
+            <h1 class="app-title">Trip Manager</h1>
+            <div class="user-bar">
+                <span class="user-label">Signed in as</span>
+                <span id="navUser" class="nav-user"></span>
+                <button type="button" class="btn btn-secondary btn-sm" id="logoutBtn">Log out</button>
+            </div>
+        </header>
 
         <nav class="tabs">
             <button type="button" class="tab-btn active" id="tabShowAll">Show all Trips</button>
@@ -129,6 +136,10 @@
                             <th>WO Date</th>
                             <th>Start</th>
                             <th>End</th>
+                            <th>Created By</th>
+                            <th>Created</th>
+                            <th>Updated By</th>
+                            <th>Updated</th>
                             <th>Actions</th>
                         </tr>
                     </thead>

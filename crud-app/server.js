@@ -1,15 +1,36 @@
 const express = require('express');
 const cors = require('cors');
+const session = require('express-session');
+const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
 const path = require('path');
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-app.use(cors());
+app.set('trust proxy', 1);
+
+app.use(
+  cors({
+    origin: true,
+    credentials: true
+  })
+);
 app.use(express.json());
 
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || 'trips-manager-dev-session-secret',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000
+    }
+  })
+);
 
 const dbUrl = process.env.DATABASE_URL || '';
 const needsSSL = dbUrl.includes('render.com') && !dbUrl.includes('.internal');
@@ -18,6 +39,12 @@ const pool = new Pool({
   connectionString: dbUrl,
   ssl: needsSSL ? { rejectUnauthorized: false } : false
 });
+
+function tsToIso(v) {
+  if (v == null) return null;
+  const d = v instanceof Date ? v : new Date(v);
+  return isNaN(d.getTime()) ? null : d.toISOString();
+}
 
 function mapTrip(row) {
   if (!row) return null;
@@ -32,8 +59,79 @@ function mapTrip(row) {
     woNumber: row.wo_number,
     woDate: row.wo_date,
     travelStartDate: row.travel_start_date,
-    travelEndDate: row.travel_end_date
+    travelEndDate: row.travel_end_date,
+    createdBy: row.created_by,
+    createdDate: tsToIso(row.created_date),
+    updatedBy: row.updated_by,
+    updatedDate: tsToIso(row.updated_date),
+    deletedBy: row.deleted_by,
+    deletedDate: tsToIso(row.deleted_date)
   };
+}
+
+function requireAuth(req, res, next) {
+  if (!req.session || !req.session.username) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  next();
+}
+
+async function ensureTripAuditColumns() {
+  const { rows } = await pool.query(`
+    SELECT EXISTS (
+      SELECT 1 FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name = 'trips'
+    ) AS exists
+  `);
+  if (!rows[0] || !rows[0].exists) return;
+
+  const addIfMissing = async (colName, sqlType) => {
+    const c = await pool.query(
+      `
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'trips' AND column_name = $1
+    `,
+      [colName]
+    );
+    if (c.rows.length === 0) {
+      await pool.query(`ALTER TABLE trips ADD COLUMN ${colName} ${sqlType}`);
+    }
+  };
+
+  await addIfMissing('created_by', 'TEXT');
+  await addIfMissing('created_date', 'TIMESTAMPTZ');
+  await addIfMissing('updated_by', 'TEXT');
+  await addIfMissing('updated_date', 'TIMESTAMPTZ');
+  await addIfMissing('deleted_by', 'TEXT');
+  await addIfMissing('deleted_date', 'TIMESTAMPTZ');
+}
+
+async function ensureAdminUsers() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS admin_users (
+      username TEXT PRIMARY KEY,
+      password_hash TEXT NOT NULL
+    )
+  `);
+
+  const seeds = [
+    ['admin', 'admin'],
+    ['admin1', 'admin1']
+  ];
+  for (const [username, plain] of seeds) {
+    const { rows } = await pool.query(
+      'SELECT 1 FROM admin_users WHERE username = $1',
+      [username]
+    );
+    if (rows.length > 0) continue;
+    const passwordHash = await bcrypt.hash(plain, 10);
+    await pool.query(
+      'INSERT INTO admin_users (username, password_hash) VALUES ($1, $2)',
+      [username, passwordHash]
+    );
+    console.log(`PostgreSQL: seeded admin user "${username}".`);
+  }
 }
 
 async function initDb() {
@@ -49,7 +147,13 @@ async function initDb() {
       wo_number TEXT NOT NULL,
       wo_date TEXT NOT NULL,
       travel_start_date TEXT NOT NULL,
-      travel_end_date TEXT NOT NULL
+      travel_end_date TEXT NOT NULL,
+      created_by TEXT,
+      created_date TIMESTAMPTZ,
+      updated_by TEXT,
+      updated_date TIMESTAMPTZ,
+      deleted_by TEXT,
+      deleted_date TIMESTAMPTZ
     )
   `;
   try {
@@ -84,12 +188,57 @@ async function initDb() {
     console.error('Error initializing database', err.stack);
   }
 }
-initDb();
 
-app.get('/api/trips', async (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
+  const username = (req.body.username || '').trim();
+  const password = req.body.password || '';
+  if (!username || !password) {
+    res.status(400).json({ error: 'Username and password are required.' });
+    return;
+  }
   try {
     const result = await pool.query(
-      'SELECT * FROM trips ORDER BY yantriki_invoice_number ASC'
+      'SELECT password_hash FROM admin_users WHERE username = $1',
+      [username]
+    );
+    if (result.rows.length === 0) {
+      res.status(401).json({ error: 'Invalid username or password.' });
+      return;
+    }
+    const ok = await bcrypt.compare(password, result.rows[0].password_hash);
+    if (!ok) {
+      res.status(401).json({ error: 'Invalid username or password.' });
+      return;
+    }
+    req.session.username = username;
+    res.json({ username });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  req.session.destroy((err) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    res.json({ ok: true });
+  });
+});
+
+app.get('/api/auth/me', (req, res) => {
+  if (!req.session || !req.session.username) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  res.json({ username: req.session.username });
+});
+
+app.get('/api/trips', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM trips WHERE deleted_date IS NULL ORDER BY yantriki_invoice_number ASC'
     );
     res.json(result.rows.map(mapTrip));
   } catch (err) {
@@ -97,7 +246,7 @@ app.get('/api/trips', async (req, res) => {
   }
 });
 
-app.get('/api/trips/search', async (req, res) => {
+app.get('/api/trips/search', requireAuth, async (req, res) => {
   const keyword = req.query.keyword;
   if (!keyword) {
     res.json([]);
@@ -106,13 +255,16 @@ app.get('/api/trips/search', async (req, res) => {
   try {
     const query = `
       SELECT * FROM trips
-      WHERE yantriki_invoice_number ILIKE $1
-         OR customer_name ILIKE $1
-         OR customer_location ILIKE $1
-         OR po_order ILIKE $1
-         OR traveller_name ILIKE $1
-         OR travel_route ILIKE $1
-         OR wo_number ILIKE $1
+      WHERE deleted_date IS NULL
+        AND (
+          yantriki_invoice_number ILIKE $1
+          OR customer_name ILIKE $1
+          OR customer_location ILIKE $1
+          OR po_order ILIKE $1
+          OR traveller_name ILIKE $1
+          OR travel_route ILIKE $1
+          OR wo_number ILIKE $1
+        )
     `;
     const param = `%${keyword}%`;
     const result = await pool.query(query, [param]);
@@ -122,15 +274,17 @@ app.get('/api/trips/search', async (req, res) => {
   }
 });
 
-app.post('/api/trips', async (req, res) => {
+app.post('/api/trips', requireAuth, async (req, res) => {
   const b = req.body;
+  const user = req.session.username;
   const insertQuery = `
     INSERT INTO trips (
       yantriki_invoice_number, customer_name, customer_location,
       po_order, po_date, traveller_name, travel_route,
-      wo_number, wo_date, travel_start_date, travel_end_date
+      wo_number, wo_date, travel_start_date, travel_end_date,
+      created_by, created_date
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
     RETURNING *
   `;
   const values = [
@@ -144,7 +298,8 @@ app.post('/api/trips', async (req, res) => {
     b.woNumber,
     b.woDate,
     b.travelStartDate,
-    b.travelEndDate
+    b.travelEndDate,
+    user
   ];
   try {
     const result = await pool.query(insertQuery, values);
@@ -160,9 +315,10 @@ app.post('/api/trips', async (req, res) => {
   }
 });
 
-app.put('/api/trips/:invoice', async (req, res) => {
+app.put('/api/trips/:invoice', requireAuth, async (req, res) => {
   const originalInvoice = decodeURIComponent(req.params.invoice);
   const b = req.body;
+  const user = req.session.username;
   if (b.yantrikiInvoiceNumber !== originalInvoice) {
     res.status(400).json({
       error: 'Yantriki Invoice Number cannot be changed. Delete and create a new record if needed.'
@@ -180,8 +336,10 @@ app.put('/api/trips/:invoice', async (req, res) => {
       wo_number = $7,
       wo_date = $8,
       travel_start_date = $9,
-      travel_end_date = $10
-    WHERE yantriki_invoice_number = $11
+      travel_end_date = $10,
+      updated_by = $11,
+      updated_date = NOW()
+    WHERE yantriki_invoice_number = $12 AND deleted_date IS NULL
     RETURNING *
   `;
   const values = [
@@ -195,6 +353,7 @@ app.put('/api/trips/:invoice', async (req, res) => {
     b.woDate,
     b.travelStartDate,
     b.travelEndDate,
+    user,
     originalInvoice
   ];
   try {
@@ -209,23 +368,41 @@ app.put('/api/trips/:invoice', async (req, res) => {
   }
 });
 
-app.delete('/api/trips/:invoice', async (req, res) => {
+app.delete('/api/trips/:invoice', requireAuth, async (req, res) => {
   const invoice = decodeURIComponent(req.params.invoice);
+  const user = req.session.username;
   try {
     const result = await pool.query(
-      'DELETE FROM trips WHERE yantriki_invoice_number = $1',
-      [invoice]
+      `
+      UPDATE trips
+      SET deleted_by = $1, deleted_date = NOW()
+      WHERE yantriki_invoice_number = $2 AND deleted_date IS NULL
+      RETURNING *
+    `,
+      [user, invoice]
     );
     if (result.rowCount === 0) {
-      res.status(404).json({ error: 'Trip not found' });
+      res.status(404).json({ error: 'Trip not found or already deleted.' });
       return;
     }
-    res.status(204).send();
+    res.status(200).json(mapTrip(result.rows[0]));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.listen(port, () => {
-  console.log(`Node.js server running on port ${port}`);
+app.use(express.static(path.join(__dirname, 'public')));
+
+async function start() {
+  await initDb();
+  await ensureTripAuditColumns();
+  await ensureAdminUsers();
+  app.listen(port, () => {
+    console.log(`Node.js server running on port ${port}`);
+  });
+}
+
+start().catch((err) => {
+  console.error('Server failed to start', err);
+  process.exit(1);
 });
