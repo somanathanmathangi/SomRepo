@@ -391,11 +391,15 @@ app.delete('/api/trips/:invoice', requireAuth, async (req, res) => {
   }
 });
 
-app.get(/^(?!\/api\/).*$/, (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
 app.use(express.static(path.join(__dirname, 'public')));
+
+app.get('*', (req, res) => {
+  res.sendFile(path.resolve(__dirname, 'public', 'index.html'), (err) => {
+    if (err) {
+      res.status(500).send(err.message);
+    }
+  });
+});
 
 async function start() {
   await initDb();
