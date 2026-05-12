@@ -103,10 +103,18 @@
                             <input type="date" id="travelEndDate" class="input-date" autocomplete="off" aria-required="true">
                         </div>
                     </div>
-                    <div class="form-group form-group-span">
+                    <div class="form-group">
                         <label for="yantrikiInvoiceNumber">Yantriki Invoice Number<span class="required-mark" aria-hidden="true">*</span></label>
-                        <input type="text" id="yantrikiInvoiceNumber" aria-required="true" autocomplete="off">
-                        <p id="pkReadonlyHint" class="field-hint hidden">Primary key — cannot be changed while editing.</p>
+                        <input type="text" id="yantrikiInvoiceNumber" aria-required="true" autocomplete="off"/>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="tripFile">Attachment (optional)</label>
+                        <input type="file" id="tripFile" name="tripFile" accept="*/*" />
+                    </div>
+
+                    <div class="form-group">
+                        <label for="pkReadonlyHint" class="field-hint hidden" id="pkReadonlyHint">Primary key — cannot be changed while editing.</label>
                     </div>
                 </div>
 
@@ -140,6 +148,7 @@
                             <th>Created</th>
                             <th>Updated By</th>
                             <th>Updated</th>
+                            <th>Attachment</th>
                             <th>Actions</th>
                         </tr>
                     </thead>

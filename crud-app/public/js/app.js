@@ -28,7 +28,7 @@ const sectionShowAll = document.getElementById('sectionShowAll');
 const sectionRecord = document.getElementById('sectionRecord');
 const sectionSearch = document.getElementById('sectionSearch');
 
-const EMPTY_COLSPAN = 16;
+const EMPTY_COLSPAN = 17;
 
 function esc(s) {
   if (s == null) return '';
@@ -200,6 +200,16 @@ async function createTrip() {
 
     const result = await response.json().catch(() => ({}));
     if (response.ok) {
+      // If a file was selected, upload it now
+      const fileInput = document.getElementById('tripFile');
+      if (fileInput && fileInput.files.length > 0) {
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+        await apiFetch(`${API_URL}/${encodeURIComponent(result.yantrikiInvoiceNumber)}/upload`, {
+          method: 'POST',
+          body: formData
+        });
+      }
       resetForm();
       showSection('showAll');
     } else {
@@ -294,6 +304,7 @@ function renderTrips(data) {
             <td>${esc(formatAuditDate(trip.createdDate))}</td>
             <td>${esc(trip.updatedBy || '—')}</td>
             <td>${esc(formatAuditDate(trip.updatedDate))}</td>
+            <td>${trip.filePath ? `<a href="/uploads/${trip.filePath}" download>Download</a>` : ''}</td>
             <td class="actions">
                 <button type="button" class="btn btn-edit">Edit</button>
                 <button type="button" class="btn btn-delete">Delete</button>

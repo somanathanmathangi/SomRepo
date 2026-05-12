@@ -4,6 +4,7 @@ const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
 const path = require('path');
+const multer = require('multer');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -65,7 +66,8 @@ function mapTrip(row) {
     updatedBy: row.updated_by,
     updatedDate: tsToIso(row.updated_date),
     deletedBy: row.deleted_by,
-    deletedDate: tsToIso(row.deleted_date)
+    deletedDate: tsToIso(row.deleted_date),
+    filePath: row.file_path
   };
 }
 
@@ -136,25 +138,26 @@ async function ensureAdminUsers() {
 
 async function initDb() {
   const createSql = `
-    CREATE TABLE trips (
-      yantriki_invoice_number TEXT PRIMARY KEY,
-      customer_name TEXT NOT NULL,
-      customer_location TEXT NOT NULL,
-      po_order TEXT NOT NULL,
-      po_date TEXT NOT NULL,
-      traveller_name TEXT NOT NULL,
-      travel_route TEXT NOT NULL,
-      wo_number TEXT NOT NULL,
-      wo_date TEXT NOT NULL,
-      travel_start_date TEXT NOT NULL,
-      travel_end_date TEXT NOT NULL,
-      created_by TEXT,
-      created_date TIMESTAMPTZ,
-      updated_by TEXT,
-      updated_date TIMESTAMPTZ,
-      deleted_by TEXT,
-      deleted_date TIMESTAMPTZ
-    )
+      CREATE TABLE trips (
+        yantriki_invoice_number TEXT PRIMARY KEY,
+        customer_name TEXT NOT NULL,
+        customer_location TEXT NOT NULL,
+        po_order TEXT NOT NULL,
+        po_date TEXT NOT NULL,
+        traveller_name TEXT NOT NULL,
+        travel_route TEXT NOT NULL,
+        wo_number TEXT NOT NULL,
+        wo_date TEXT NOT NULL,
+        travel_start_date TEXT NOT NULL,
+        travel_end_date TEXT NOT NULL,
+        created_by TEXT,
+        created_date TIMESTAMPTZ,
+        updated_by TEXT,
+        updated_date TIMESTAMPTZ,
+        deleted_by TEXT,
+        deleted_date TIMESTAMPTZ,
+        file_path TEXT
+      )
   `;
   try {
     const { rows: existsRows } = await pool.query(`
@@ -391,14 +394,26 @@ app.delete('/api/trips/:invoice', requireAuth, async (req, res) => {
   }
 });
 
-app.use(express.static(path.join(__dirname, 'public')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-app.get('*', (req, res) => {
-  res.sendFile(path.resolve(__dirname, 'public', 'index.html'), (err) => {
-    if (err) {
-      res.status(500).send(err.message);
+// Upload endpoint for attaching a file to a trip
+app.post('/api/trips/:invoice/upload', requireAuth, upload.single('file'), async (req, res) => {
+  const invoice = decodeURIComponent(req.params.invoice);
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file uploaded' });
+  }
+  try {
+    const result = await pool.query(
+      `UPDATE trips SET file_path = $1 WHERE yantriki_invoice_number = $2 AND deleted_date IS NULL RETURNING *`,
+      [req.file.filename, invoice]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Trip not found' });
     }
-  });
+    res.json({ message: 'File uploaded', filename: req.file.filename, trip: mapTrip(result.rows[0]) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 async function start() {
