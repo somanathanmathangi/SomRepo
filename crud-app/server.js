@@ -4,7 +4,10 @@ const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
 const path = require('path');
+const graphService = require('./src/graphService');
 const multer = require('multer');
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -396,23 +399,49 @@ app.delete('/api/trips/:invoice', requireAuth, async (req, res) => {
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Upload endpoint for attaching a file to a trip
+// Upload endpoint for attaching a file to a trip (uploads to SharePoint)
 app.post('/api/trips/:invoice/upload', requireAuth, upload.single('file'), async (req, res) => {
   const invoice = decodeURIComponent(req.params.invoice);
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
+
+  const siteId = process.env.SHAREPOINT_SITE_ID;
+  const driveId = process.env.SHAREPOINT_DRIVE_ID;
+
+  if (!siteId || !driveId) {
+    return res.status(500).json({ error: 'SharePoint Site ID or Drive ID is not configured.' });
+  }
+
   try {
+    // Upload to SharePoint
+    const uploadResponse = await graphService.uploadToSharePoint(
+      `${invoice}_${req.file.originalname}`,
+      req.file.buffer,
+      siteId,
+      driveId
+    );
+
+    const sharePointUrl = uploadResponse.webUrl;
+
+    // Update database with SharePoint link
     const result = await pool.query(
       `UPDATE trips SET file_path = $1 WHERE yantriki_invoice_number = $2 AND deleted_date IS NULL RETURNING *`,
-      [req.file.filename, invoice]
+      [sharePointUrl, invoice]
     );
+
     if (result.rowCount === 0) {
       return res.status(404).json({ error: 'Trip not found' });
     }
-    res.json({ message: 'File uploaded', filename: req.file.filename, trip: mapTrip(result.rows[0]) });
+
+    res.json({ 
+      message: 'File uploaded to SharePoint', 
+      sharePointUrl: sharePointUrl, 
+      trip: mapTrip(result.rows[0]) 
+    });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('Upload error:', err);
+    res.status(500).json({ error: 'Failed to upload to SharePoint: ' + err.message });
   }
 });
 

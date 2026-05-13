@@ -304,7 +304,7 @@ function renderTrips(data) {
             <td>${esc(formatAuditDate(trip.createdDate))}</td>
             <td>${esc(trip.updatedBy || '—')}</td>
             <td>${esc(formatAuditDate(trip.updatedDate))}</td>
-            <td>${trip.filePath ? `<a href="/uploads/${trip.filePath}" download>Download</a>` : ''}</td>
+            <td>${trip.filePath ? `<a href="${trip.filePath}" target="_blank">View on SharePoint</a>` : ''}</td>
             <td class="actions">
                 <button type="button" class="btn btn-edit">Edit</button>
                 <button type="button" class="btn btn-delete">Delete</button>
