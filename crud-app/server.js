@@ -293,17 +293,12 @@ function getEmailTransporter() {
 
 async function sendTripEmail(trip) {
   const transporter = getEmailTransporter();
-  if (!transporter) {
-    console.log('Email not configured, skipping notification');
-    return;
-  }
-
   const emailTo = process.env.EMAIL_TO || 'somanathan_c@yahoo.com';
-  const subject = `New Trip Created - ${trip.yantrikiInvoiceNumber}`;
+  const subject = `Trip ${trip.yantrikiInvoiceNumber} - ${trip.status === 'pending' ? 'Created' : 'Updated'} & Pending Approval`;
 
   const html = `
-    <h2>New Trip Record Created</h2>
-    <p>A new trip record has been created and is pending approval.</p>
+    <h2>Trip Record ${trip.status === 'pending' ? 'Created' : 'Updated'}</h2>
+    <p>A trip record has been ${trip.status === 'pending' ? 'created' : 'updated'} and is pending approval.</p>
     <h3>Trip Details:</h3>
     <table style="border-collapse: collapse; width: 100%;">
       <tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Yantriki Invoice Number</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${trip.yantrikiInvoiceNumber}</td></tr>
@@ -325,16 +320,25 @@ async function sendTripEmail(trip) {
     <p style="color: #666; font-size: 12px;">This is an automated email from Trip Manager System.</p>
   `;
 
-  try {
-    await transporter.sendMail({
-      from: process.env.EMAIL_FROM || 'Trip Manager <noreply@tripmanager.com>',
-      to: emailTo,
-      subject: subject,
-      html: html
-    });
-    console.log(`Email sent to ${emailTo} for trip ${trip.yantrikiInvoiceNumber}`);
-  } catch (err) {
-    console.error('Error sending email:', err.message);
+  if (transporter) {
+    try {
+      await transporter.sendMail({
+        from: process.env.EMAIL_FROM || 'Trip Manager <noreply@tripmanager.com>',
+        to: emailTo,
+        subject: subject,
+        html: html
+      });
+      console.log(`Email sent to ${emailTo} for trip ${trip.yantrikiInvoiceNumber}`);
+    } catch (err) {
+      console.error('Error sending email:', err.message);
+    }
+  } else {
+    // Fallback: log email content to console for debugging
+    console.log('=== EMAIL NOTIFICATION (SMTP not configured) ===');
+    console.log(`To: ${emailTo}`);
+    console.log(`Subject: ${subject}`);
+    console.log('Content: Trip details logged above.');
+    console.log('===============================================');
   }
 }
 
