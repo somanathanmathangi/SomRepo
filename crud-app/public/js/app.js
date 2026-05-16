@@ -404,6 +404,7 @@ function renderTrips(data) {
             <td>${esc(trip.updatedBy || '—')}</td>
             <td>${esc(formatAuditDate(trip.updatedDate))}</td>
             <td>${docLink}</td>
+            <td>${statusBadge}${rejectionReason}</td>
             <td class="actions">
                 ${currentUserRole && currentUserRole.toLowerCase() === 'approver' ? `
                 <button type="button" class="btn btn-approve btn-sm" data-action="approve" ${trip.status && trip.status !== 'pending' ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>Approve</button>
