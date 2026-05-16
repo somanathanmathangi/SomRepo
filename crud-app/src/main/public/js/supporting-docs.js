@@ -3,6 +3,7 @@ const API_URL = '/api/trips';
 let currentTrip = null;
 let docs = [];
 let isReadOnly = false;
+let currentUserRole = null;
 
 function esc(s) {
     if (s == null) return '';
@@ -43,6 +44,7 @@ async function initSession() {
         const res = await fetch('/api/auth/me', { credentials: 'same-origin' });
         if (!res.ok) { window.location.href = '/login.html'; return false; }
         const data = await res.json();
+        currentUserRole = data.role;
         document.getElementById('navUser').textContent = data.username;
         return true;
     } catch { window.location.href = '/login.html'; return false; }
@@ -125,12 +127,20 @@ function renderDocs() {
          </a>`
             : '—';
 
-        const actions = isReadOnly
-            ? '<span style="color:#999;font-size:12px;">—</span>'
-            : `<div class="doc-actions">
+        let actions = '';
+        if (isReadOnly) {
+            actions = '<span style="color:#999;font-size:12px;">—</span>';
+        } else if (currentUserRole === 'approver') {
+            actions = `<div class="doc-actions">
+           <button type="button" class="btn btn-approve btn-sm" onclick="approveTrip()">Approve</button>
+           <button type="button" class="btn btn-reject btn-sm" onclick="rejectTrip()">Reject</button>
+         </div>`;
+        } else {
+            actions = `<div class="doc-actions">
            <button type="button" class="btn btn-edit btn-sm" onclick="editDoc(${doc.id})">Edit</button>
            <button type="button" class="btn btn-delete btn-sm" onclick="deleteDoc(${doc.id})">Delete</button>
          </div>`;
+        }
 
         tr.innerHTML = `
       <td class="cell-mono">${doc.pageNo}</td>
@@ -263,6 +273,42 @@ async function deleteDoc(id) {
         }
     } catch (err) { alert('Error: ' + err.message); }
 }
+
+async function approveTrip() {
+    const invoice = getInvoiceFromUrl();
+    if (!confirm('Are you sure you want to approve this trip?')) return;
+    try {
+        const response = await apiFetch(`${API_URL}/${encodeURIComponent(invoice)}/approve`, { method: 'POST' });
+        const result = await response.json().catch(() => ({}));
+        if (response.ok) {
+            alert('Trip approved successfully!');
+            window.location.reload();
+        } else {
+            alert(result.error || 'Failed to approve trip.');
+        }
+    } catch (error) { alert('Error approving trip.'); }
+}
+
+async function rejectTrip() {
+    const invoice = getInvoiceFromUrl();
+    const reason = prompt('Please provide a reason for rejection:');
+    if (reason === null) return;
+    try {
+        const response = await apiFetch(`${API_URL}/${encodeURIComponent(invoice)}/reject`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reason: reason.trim() || 'No reason provided' })
+        });
+        const result = await response.json().catch(() => ({}));
+        if (response.ok) {
+            alert('Trip rejected.');
+            window.location.reload();
+        } else {
+            alert(result.error || 'Failed to reject trip.');
+        }
+    } catch (error) { alert('Error rejecting trip.'); }
+}
+
 
 document.addEventListener('DOMContentLoaded', async () => {
     if (!(await initSession())) return;
