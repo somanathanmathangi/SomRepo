@@ -45,6 +45,7 @@ async function initSession() {
         if (!res.ok) { window.location.href = '/login.html'; return false; }
         const data = await res.json();
         currentUserRole = data.role;
+        console.log('Supporting Docs: Current User Role detected as:', currentUserRole);
         document.getElementById('navUser').textContent = data.username;
         return true;
     } catch { window.location.href = '/login.html'; return false; }
