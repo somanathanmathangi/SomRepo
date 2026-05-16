@@ -203,6 +203,10 @@ function renderAllTrips(data) {
               </svg>
               Show Docs
             </a></td>
+            <td class="approval-actions">
+                <button type="button" class="btn btn-approve btn-sm" onclick="approveTrip('${esc(trip.yantrikiInvoiceNumber)}')"${trip.status !== 'pending' ? ' disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>Approve</button>
+                <button type="button" class="btn btn-reject btn-sm" onclick="openRejectModal('${esc(trip.yantrikiInvoiceNumber)}')"${trip.status !== 'pending' ? ' disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>Reject</button>
+            </td>
         `;
         tbody.appendChild(tr);
     });
