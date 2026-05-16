@@ -158,6 +158,16 @@ async function ensureAdminUsers() {
     )
   `);
 
+  // Add role column if it doesn't exist (for existing tables)
+  const { rows: colCheck } = await pool.query(`
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'admin_users' AND column_name = 'role'
+  `);
+  if (colCheck.length === 0) {
+    await pool.query('ALTER TABLE admin_users ADD COLUMN role TEXT NOT NULL DEFAULT \'admin\'');
+    console.log('PostgreSQL: added role column to admin_users table.');
+  }
+
   // Seed admin users
   const adminSeeds = [
     ['admin', 'admin', 'admin'],
