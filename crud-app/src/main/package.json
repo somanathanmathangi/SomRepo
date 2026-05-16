@@ -4,7 +4,8 @@
   "description": "Node.js conversion of Spring Boot CRUD app",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "postinstall": "rm -rf node_modules/@azure/msal-node node_modules/@microsoft/microsoft-graph-client node_modules/isomorphic-fetch || rmdir /s /q node_modules\\@azure\\msal-node node_modules\\@microsoft\\microsoft-graph-client node_modules\\isomorphic-fetch 2>nul || echo 'Cleanup complete'"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
