@@ -267,6 +267,24 @@ body {
     background: #c82333;
 }
 
+.btn-approve {
+    background: #28a745;
+    color: white;
+}
+
+.btn-approve:hover {
+    background: #218838;
+}
+
+.btn-reject {
+    background: #dc3545;
+    color: white;
+}
+
+.btn-reject:hover {
+    background: #c82333;
+}
+
 .form-actions {
     display: flex;
     gap: 10px;
