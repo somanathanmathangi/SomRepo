@@ -688,6 +688,14 @@ app.post('/api/trips/:invoice/reject', requireApprover, async (req, res) => {
   }
 });
 
+// Serve static files from 'public' directory
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Catch-all route: serve index.html for non-API requests
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 async function start() {
   await initDb();
   await ensureTripAuditColumns();
