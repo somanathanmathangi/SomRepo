@@ -28,7 +28,10 @@ const sectionShowAll = document.getElementById('sectionShowAll');
 const sectionRecord = document.getElementById('sectionRecord');
 const sectionSearch = document.getElementById('sectionSearch');
 
-const EMPTY_COLSPAN = 17;
+const EMPTY_COLSPAN = 19;
+let currentPage = 1;
+let sortBy = 'yantriki_invoice_number';
+let sortOrder = 'ASC';
 
 function esc(s) {
   if (s == null) return '';
@@ -112,8 +115,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   fetchTrips();
   setupNavigation();
+  setupSorting();
   searchInput.addEventListener('input', () => clearSearchError());
 });
+
+function setupSorting() {
+  document.querySelectorAll('th.sortable').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = th.getAttribute('data-sort');
+      if (sortBy === col) {
+        sortOrder = sortOrder === 'ASC' ? 'DESC' : 'ASC';
+      } else {
+        sortBy = col;
+        sortOrder = 'ASC';
+      }
+      fetchTrips();
+    });
+  });
+}
 
 function setupNavigation() {
   tabShowAll.addEventListener('click', () => showSection('showAll'));
@@ -146,15 +165,45 @@ function showSection(sectionName) {
   }
 }
 
-async function fetchTrips() {
+async function fetchTrips(page = currentPage) {
+  currentPage = page;
   try {
-    const response = await apiFetch(API_URL);
-    const trips = await response.json();
-    renderTrips(trips);
-  } catch (error) {
-    if (error.message === 'Unauthorized') return;
-    console.error('Error fetching trips:', error);
+    const response = await apiFetch(`${API_URL}?page=${currentPage}&sortBy=${sortBy}&sortOrder=${sortOrder}`);
+    const data = await response.json();
+    renderTrips(data.trips);
+    renderPagination(data.pagination);
+  } catch (err) {
+    if (err.message === 'Unauthorized') return;
+    console.error('Error fetching trips:', err);
   }
+}
+
+function renderPagination(pagination) {
+  const container = document.getElementById('pagination');
+  if (!container) return;
+  container.innerHTML = '';
+  if (pagination.pages <= 1) return;
+
+  const nav = document.createElement('nav');
+  nav.className = 'pagination-nav';
+
+  const prevBtn = document.createElement('button');
+  prevBtn.textContent = 'Previous';
+  prevBtn.disabled = pagination.page === 1;
+  prevBtn.onclick = () => fetchTrips(pagination.page - 1);
+  nav.appendChild(prevBtn);
+
+  const info = document.createElement('span');
+  info.textContent = `Page ${pagination.page} of ${pagination.pages}`;
+  nav.appendChild(info);
+
+  const nextBtn = document.createElement('button');
+  nextBtn.textContent = 'Next';
+  nextBtn.disabled = pagination.page === pagination.pages;
+  nextBtn.onclick = () => fetchTrips(pagination.page + 1);
+  nav.appendChild(nextBtn);
+
+  container.appendChild(nav);
 }
 
 function clearSearchError() {
@@ -210,14 +259,11 @@ async function createTrip() {
   try {
     const fileInput = document.getElementById('tripFile');
 
-    // If a file is selected, use FormData to send both data and file together
     if (fileInput && fileInput.files.length > 0) {
       const formData = new FormData();
-      // Add all trip data fields
       Object.keys(data).forEach(key => {
         formData.append(key, data[key]);
       });
-      // Add the file
       formData.append('file', fileInput.files[0]);
 
       const response = await apiFetch(API_URL, {
@@ -233,7 +279,6 @@ async function createTrip() {
         showError(result.error || 'Failed to add trip.');
       }
     } else {
-      // No file, send as JSON
       const response = await apiFetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -365,12 +410,10 @@ function renderTrips(data) {
     const tr = document.createElement('tr');
     const inv = trip.yantrikiInvoiceNumber;
 
-    // Status badge
     const statusClass = formatStatusClass(trip.status);
     const statusText = formatStatus(trip.status);
     const statusBadge = `<span class="status-badge ${statusClass}">${statusText}</span>`;
 
-    // Supporting docs link
     const docLink = `<a href="supporting-docs.html?invoice=${encodeURIComponent(inv)}" class="file-download-link" title="View supporting documents">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;">
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -382,7 +425,6 @@ function renderTrips(data) {
       Show Supporting Docs
     </a>`;
 
-    // Rejection reason
     const rejectionReason = trip.status === 'rejected' && trip.rejectionReason
       ? `<br><span class="rejection-reason">Reason: ${esc(trip.rejectionReason)}</span>`
       : '';
@@ -397,6 +439,8 @@ function renderTrips(data) {
             <td>${esc(trip.travelRoute)}</td>
             <td>${esc(trip.woNumber)}</td>
             <td>${esc(trip.woDate)}</td>
+            <td>${esc(trip.woStartDate || '—')}</td>
+            <td>${esc(trip.woEndDate || '—')}</td>
             <td>${esc(trip.travelStartDate)}</td>
             <td>${esc(trip.travelEndDate)}</td>
             <td>${esc(trip.createdBy || '—')}</td>
@@ -407,8 +451,8 @@ function renderTrips(data) {
             <td>${statusBadge}${rejectionReason}</td>
             <td class="actions">
                 ${currentUserRole && currentUserRole.toLowerCase() === 'approver' ? `
-                <button type="button" class="btn btn-approve btn-sm" data-action="approve" ${trip.status && trip.status !== 'pending' ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>Approve</button>
-                <button type="button" class="btn btn-reject btn-sm" data-action="reject" ${trip.status && trip.status !== 'pending' ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>Reject</button>
+                <button type="button" class="btn btn-approve btn-sm" data-action="approve" ${trip.status && trip.status !== 'pending' ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : (trip.docCount === 0 ? 'disabled title="Requires supporting documents" style="opacity: 0.5; cursor: not-allowed;"' : '')}>Approve</button>
+                <button type="button" class="btn btn-reject btn-sm" data-action="reject" ${trip.status && trip.status !== 'pending' ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : (trip.docCount === 0 ? 'disabled title="Requires supporting documents" style="opacity: 0.5; cursor: not-allowed;"' : '')}>Reject</button>
                 ` : `
                 <button type="button" class="btn btn-edit">Edit</button>
                 <button type="button" class="btn btn-delete">Delete</button>
@@ -439,10 +483,11 @@ function editTrip(trip) {
   woNumberInput.value = trip.woNumber || '';
   woDateInput.value = trip.woDate || '';
   travelStartDateInput.value = trip.travelStartDate || '';
-  travelEndDateInput.value = trip.travelEndDate || '';
-  yantrikiInvoiceInput.value = trip.yantrikiInvoiceNumber || '';
-
-  setPkFieldReadonly(true);
+  travelEndDateInput.value = trip.travelEndDate;
+  yantrikiInvoiceInput.value = trip.yantrikiInvoiceNumber;
+  document.getElementById('woStartDate').value = trip.woStartDate || '';
+  document.getElementById('woEndDate').value = trip.woEndDate || '';
+  editingInvoiceKey.value = trip.yantrikiInvoiceNumber;
   formTitle.textContent = `Update Trip — ${trip.yantrikiInvoiceNumber}`;
   addBtn.style.display = 'none';
   updateBtn.style.display = 'inline-block';
@@ -465,6 +510,8 @@ function resetForm() {
   travelStartDateInput.value = '';
   travelEndDateInput.value = '';
   yantrikiInvoiceInput.value = '';
+  document.getElementById('woStartDate').value = '';
+  document.getElementById('woEndDate').value = '';
 
   // Clear file input
   const fileInput = document.getElementById('tripFile');
@@ -489,7 +536,9 @@ function getFormData() {
     woNumber: woNumberInput.value.trim(),
     woDate: woDateInput.value.trim(),
     travelStartDate: travelStartDateInput.value.trim(),
-    travelEndDate: travelEndDateInput.value.trim()
+    travelEndDate: travelEndDateInput.value.trim(),
+    woStartDate: document.getElementById('woStartDate').value.trim(),
+    woEndDate: document.getElementById('woEndDate').value.trim()
   };
 }
 
@@ -525,7 +574,9 @@ function validateData(data) {
     woDate: 'WO Date',
     travelStartDate: 'Travel Start Date',
     travelEndDate: 'Travel End Date',
-    yantrikiInvoiceNumber: 'Yantriki Invoice Number'
+    yantrikiInvoiceNumber: 'Yantriki Invoice Number',
+    woStartDate: 'WO Start Date',
+    woEndDate: 'WO End Date'
   };
 
   const missing = [];
@@ -546,26 +597,29 @@ function validateData(data) {
   const woD = parseDateOnly(data.woDate);
   const startD = parseDateOnly(data.travelStartDate);
   const endD = parseDateOnly(data.travelEndDate);
+  const woStartD = parseDateOnly(data.woStartDate);
+  const woEndD = parseDateOnly(data.woEndDate);
 
-  if (!poD) {
-    showError('PO Date is not a valid date.');
-    return false;
-  }
-  if (!woD) {
-    showError('WO Date is not a valid date.');
-    return false;
-  }
-  if (!startD) {
-    showError('Travel Start Date is not a valid date.');
-    return false;
-  }
-  if (!endD) {
-    showError('Travel End Date is not a valid date.');
+  if (!poD || !woD || !startD || !endD || !woStartD || !woEndD) {
+    showError('One or more date fields are invalid.');
     return false;
   }
 
-  if (endD < startD) {
-    showError('Travel End Date must be on or after Travel Start Date.');
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  if (startD > today) {
+    showError('Travel Start Date should not be a future date.');
+    return false;
+  }
+
+  if (endD <= startD) {
+    showError('Travel End Date should be greater than Travel Start Date.');
+    return false;
+  }
+
+  if (woStartD > woEndD) {
+    showError('WO Start Date should not be greater than WO End Date.');
     return false;
   }
 

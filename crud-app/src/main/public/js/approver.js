@@ -161,8 +161,8 @@ function renderPendingTrips(data) {
               Show Docs
             </a></td>
             <td class="approval-actions">
-                <button type="button" class="btn btn-approve btn-sm" onclick="approveTrip('${esc(trip.yantrikiInvoiceNumber)}')">Approve</button>
-                <button type="button" class="btn btn-reject btn-sm" onclick="openRejectModal('${esc(trip.yantrikiInvoiceNumber)}')">Reject</button>
+                <button type="button" class="btn btn-approve btn-sm" onclick="approveTrip('${esc(trip.yantrikiInvoiceNumber)}')" ${trip.docCount === 0 ? 'disabled title="Requires supporting documents" style="opacity: 0.5; cursor: not-allowed;"' : ''}>Approve</button>
+                <button type="button" class="btn btn-reject btn-sm" onclick="openRejectModal('${esc(trip.yantrikiInvoiceNumber)}')" ${trip.docCount === 0 ? 'disabled title="Requires supporting documents" style="opacity: 0.5; cursor: not-allowed;"' : ''}>Reject</button>
             </td>
         `;
         tbody.appendChild(tr);
@@ -204,8 +204,8 @@ function renderAllTrips(data) {
               Show Docs
             </a></td>
             <td class="approval-actions">
-                <button type="button" class="btn btn-approve btn-sm" onclick="approveTrip('${esc(trip.yantrikiInvoiceNumber)}')"${trip.status !== 'pending' ? ' disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>Approve</button>
-                <button type="button" class="btn btn-reject btn-sm" onclick="openRejectModal('${esc(trip.yantrikiInvoiceNumber)}')"${trip.status !== 'pending' ? ' disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>Reject</button>
+                <button type="button" class="btn btn-approve btn-sm" onclick="approveTrip('${esc(trip.yantrikiInvoiceNumber)}')"${trip.status !== 'pending' ? ' disabled style="opacity: 0.5; cursor: not-allowed;"' : (trip.docCount === 0 ? ' disabled title="Requires supporting documents" style="opacity: 0.5; cursor: not-allowed;"' : '')}>Approve</button>
+                <button type="button" class="btn btn-reject btn-sm" onclick="openRejectModal('${esc(trip.yantrikiInvoiceNumber)}')"${trip.status !== 'pending' ? ' disabled style="opacity: 0.5; cursor: not-allowed;"' : (trip.docCount === 0 ? ' disabled title="Requires supporting documents" style="opacity: 0.5; cursor: not-allowed;"' : '')}>Reject</button>
             </td>
         `;
         tbody.appendChild(tr);

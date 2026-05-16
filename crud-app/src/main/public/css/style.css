@@ -321,6 +321,23 @@ tbody tr:hover {
     background: #f8f9fa;
 }
 
+th.sortable {
+    cursor: pointer;
+    position: relative;
+    padding-right: 25px !important;
+}
+
+th.sortable::after {
+    content: '↕';
+    position: absolute;
+    right: 8px;
+    opacity: 0.3;
+}
+
+th.sortable:hover {
+    background: #e9ecef;
+}
+
 .cell-mono {
     font-family: 'Courier New', monospace;
     font-weight: 500;
@@ -427,11 +444,54 @@ tbody tr:hover {
 
 /* Rejection Reason */
 .rejection-reason {
-    color: #721c24;
+    color: #dc3545;
     font-size: 11px;
     font-style: italic;
-    margin-top: 4px;
     display: block;
+    margin-top: 2px;
+}
+
+/* Pagination */
+.pagination-container {
+    margin-top: 20px;
+    display: flex;
+    justify-content: center;
+}
+
+.pagination-nav {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    background: white;
+    padding: 10px 20px;
+    border-radius: 20px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.pagination-nav button {
+    background: #667eea;
+    color: white;
+    border: none;
+    padding: 6px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background 0.2s;
+}
+
+.pagination-nav button:hover:not(:disabled) {
+    background: #764ba2;
+}
+
+.pagination-nav button:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
+.pagination-nav span {
+    font-size: 14px;
+    font-weight: 500;
+    color: #555;
 }
 
 /* Login Page */

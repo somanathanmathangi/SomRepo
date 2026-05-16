@@ -85,7 +85,10 @@ function mapTrip(row) {
     status: row.status || 'pending',
     approvedBy: row.approved_by,
     approvedDate: tsToIso(row.approved_date),
-    rejectionReason: row.rejection_reason
+    rejectionReason: row.rejection_reason,
+    woStartDate: row.wo_start_date,
+    woEndDate: row.wo_end_date,
+    docCount: parseInt(row.doc_count) || 0
   };
 }
 
@@ -178,6 +181,8 @@ async function ensureTripAuditColumns() {
   await addIfMissing('approved_by', 'TEXT');
   await addIfMissing('approved_date', 'TIMESTAMPTZ');
   await addIfMissing('rejection_reason', 'TEXT');
+  await addIfMissing('wo_start_date', 'TEXT');
+  await addIfMissing('wo_end_date', 'TEXT');
 }
 
 async function ensureAdminUsers() {
@@ -243,7 +248,9 @@ async function initDb() {
       status TEXT DEFAULT 'pending',
       approved_by TEXT,
       approved_date TIMESTAMPTZ,
-      rejection_reason TEXT
+      rejection_reason TEXT,
+      wo_start_date TEXT,
+      wo_end_date TEXT
     )
   `;
   try {
@@ -378,15 +385,54 @@ app.get('/api/auth/me', (req, res) => {
 // ==================== TRIP ENDPOINTS ====================
 
 app.get('/api/trips', requireAuth, async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const offset = (page - 1) * limit;
+  const sortBy = req.query.sortBy || 'yantriki_invoice_number';
+  const sortOrder = req.query.sortOrder || 'ASC';
+
+  const allowedSortCols = [
+    'yantriki_invoice_number', 'customer_name', 'customer_location', 'po_order', 'po_date',
+    'traveller_name', 'travel_route', 'wo_number', 'wo_date', 'travel_start_date', 'travel_end_date',
+    'created_by', 'created_date', 'updated_by', 'updated_date', 'status', 'wo_start_date', 'wo_end_date'
+  ];
+  const finalSortCol = allowedSortCols.includes(sortBy) ? sortBy : 'yantriki_invoice_number';
+  const finalSortOrder = sortOrder.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+
   try {
-    const result = await pool.query('SELECT * FROM trips WHERE deleted_date IS NULL ORDER BY yantriki_invoice_number ASC');
-    res.json(result.rows.map(mapTrip));
+    const countRes = await pool.query('SELECT COUNT(*) FROM trips WHERE deleted_date IS NULL');
+    const totalCount = parseInt(countRes.rows[0].count);
+
+    const query = `
+      SELECT t.*, (SELECT COUNT(*) FROM supporting_docs sd WHERE sd.trip_invoice_number = t.yantriki_invoice_number) as doc_count
+      FROM trips t
+      WHERE t.deleted_date IS NULL
+      ORDER BY ${finalSortCol} ${finalSortOrder}
+      LIMIT $1 OFFSET $2
+    `;
+    const result = await pool.query(query, [limit, offset]);
+    
+    res.json({
+      trips: result.rows.map(mapTrip),
+      pagination: {
+        total: totalCount,
+        page,
+        limit,
+        pages: Math.ceil(totalCount / limit)
+      }
+    });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.get('/api/trips/pending', requireApprover, async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM trips WHERE deleted_date IS NULL AND status = $1 ORDER BY created_date DESC', ['pending']);
+    const query = `
+      SELECT t.*, (SELECT COUNT(*) FROM supporting_docs sd WHERE sd.trip_invoice_number = t.yantriki_invoice_number) as doc_count
+      FROM trips t
+      WHERE t.deleted_date IS NULL AND t.status = $1
+      ORDER BY t.created_date DESC
+    `;
+    const result = await pool.query(query, ['pending']);
     res.json(result.rows.map(mapTrip));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -404,7 +450,14 @@ app.get('/api/trips/search', requireAuth, async (req, res) => {
   const keyword = req.query.keyword;
   if (!keyword) { res.json([]); return; }
   try {
-    const query = `SELECT * FROM trips WHERE deleted_date IS NULL AND (yantriki_invoice_number ILIKE $1 OR customer_name ILIKE $1 OR customer_location ILIKE $1 OR po_order ILIKE $1 OR traveller_name ILIKE $1 OR travel_route ILIKE $1 OR wo_number ILIKE $1)`;
+    const query = `
+      SELECT t.*, (SELECT COUNT(*) FROM supporting_docs sd WHERE sd.trip_invoice_number = t.yantriki_invoice_number) as doc_count
+      FROM trips t
+      WHERE t.deleted_date IS NULL AND (
+        t.yantriki_invoice_number ILIKE $1 OR t.customer_name ILIKE $1 OR t.customer_location ILIKE $1 OR 
+        t.po_order ILIKE $1 OR t.traveller_name ILIKE $1 OR t.travel_route ILIKE $1 OR t.wo_number ILIKE $1
+      )
+    `;
     const param = `%${keyword}%`;
     const result = await pool.query(query, [param]);
     res.json(result.rows.map(mapTrip));
@@ -414,8 +467,8 @@ app.get('/api/trips/search', requireAuth, async (req, res) => {
 app.post('/api/trips', requireAuth, async (req, res) => {
   const b = req.body;
   const user = req.session.username;
-  const insertQuery = `INSERT INTO trips (yantriki_invoice_number, customer_name, customer_location, po_order, po_date, traveller_name, travel_route, wo_number, wo_date, travel_start_date, travel_end_date, created_by, created_date, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), 'pending') RETURNING *`;
-  const values = [b.yantrikiInvoiceNumber, b.customerName, b.customerLocation, b.poOrder, b.poDate, b.travellerName, b.travelRoute, b.woNumber, b.woDate, b.travelStartDate, b.travelEndDate, user];
+  const insertQuery = `INSERT INTO trips (yantriki_invoice_number, customer_name, customer_location, po_order, po_date, traveller_name, travel_route, wo_number, wo_date, travel_start_date, travel_end_date, created_by, created_date, status, wo_start_date, wo_end_date) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), 'pending', $13, $14) RETURNING *`;
+  const values = [b.yantrikiInvoiceNumber, b.customerName, b.customerLocation, b.poOrder, b.poDate, b.travellerName, b.travelRoute, b.woNumber, b.woDate, b.travelStartDate, b.travelEndDate, user, b.woStartDate, b.woEndDate];
   try {
     const result = await pool.query(insertQuery, values);
     const trip = mapTrip(result.rows[0]);
@@ -431,8 +484,8 @@ app.put('/api/trips/:invoice', requireAuth, async (req, res) => {
   const originalInvoice = decodeURIComponent(req.params.invoice);
   const b = req.body; const user = req.session.username;
   if (b.yantrikiInvoiceNumber !== originalInvoice) { res.status(400).json({ error: 'Yantriki Invoice Number cannot be changed.' }); return; }
-  const query = `UPDATE trips SET customer_name=$1, customer_location=$2, po_order=$3, po_date=$4, traveller_name=$5, travel_route=$6, wo_number=$7, wo_date=$8, travel_start_date=$9, travel_end_date=$10, updated_by=$11, updated_date=NOW(), status='pending' WHERE yantriki_invoice_number=$12 AND deleted_date IS NULL RETURNING *`;
-  const values = [b.customerName, b.customerLocation, b.poOrder, b.poDate, b.travellerName, b.travelRoute, b.woNumber, b.woDate, b.travelStartDate, b.travelEndDate, user, originalInvoice];
+  const query = `UPDATE trips SET customer_name=$1, customer_location=$2, po_order=$3, po_date=$4, traveller_name=$5, travel_route=$6, wo_number=$7, wo_date=$8, travel_start_date=$9, travel_end_date=$10, updated_by=$11, updated_date=NOW(), status='pending', wo_start_date=$12, wo_end_date=$13 WHERE yantriki_invoice_number=$14 AND deleted_date IS NULL RETURNING *`;
+  const values = [b.customerName, b.customerLocation, b.poOrder, b.poDate, b.travellerName, b.travelRoute, b.woNumber, b.woDate, b.travelStartDate, b.travelEndDate, user, b.woStartDate, b.woEndDate, originalInvoice];
   try {
     const result = await pool.query(query, values);
     if (result.rowCount === 0) { res.status(404).json({ error: 'Trip not found' }); return; }
