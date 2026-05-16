@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Approver Dashboard — Trip Manager</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-pending {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+
+        .status-approved {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .status-rejected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .approval-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-approve {
+            background-color: #28a745;
+            color: white;
+        }
+
+        .btn-approve:hover {
+            background-color: #218838;
+        }
+
+        .btn-reject {
+            background-color: #dc3545;
+            color: white;
+        }
+
+        .btn-reject:hover {
+            background-color: #c82333;
+        }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background-color: white;
+            padding: 24px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 400px;
+        }
+
+        .modal-content h3 {
+            margin-top: 0;
+            margin-bottom: 16px;
+        }
+
+        .modal-content textarea {
+            width: 100%;
+            min-height: 100px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            resize: vertical;
+            font-family: inherit;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+            justify-content: flex-end;
+        }
+
+        .rejection-reason {
+            color: #721c24;
+            font-size: 12px;
+            font-style: italic;
+            margin-top: 4px;
+        }
+
+        .file-link {
+            color: #007bff;
+            text-decoration: none;
+        }
+
+        .file-link:hover {
+            text-decoration: underline;
+        }
+
+        .approver-header {
+            background-color: #2c3e50;
+        }
+
+        .approver-header .app-title {
+            font-size: 1.2em;
+        }
+
+        .tab-pending {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+
+        .tab-pending.active {
+            background-color: #856404;
+            color: white;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container container-wide">
+        <header class="app-header approver-header">
+            <h1 class="app-title">Trip Manager — Approver Dashboard</h1>
+            <div class="user-bar">
+                <span class="user-label">Signed in as</span>
+                <span id="navUser" class="nav-user"></span>
+                <span id="userRole" class="nav-user" style="margin-left: 8px; opacity: 0.7;"></span>
+                <button type="button" class="btn btn-secondary btn-sm" id="logoutBtn">Log out</button>
+            </div>
+        </header>
+
+        <nav class="tabs">
+            <button type="button" class="tab-btn active" id="tabPending">Pending Approvals</button>
+            <button type="button" class="tab-btn" id="tabAll">All Trips</button>
+            <button type="button" class="tab-btn" id="tabSearch">Search Trip</button>
+        </nav>
+
+        <section id="sectionSearch" class="page-section hidden">
+            <div class="search-section">
+                <div class="search-field-wrap">
+                    <label for="searchInput">Search<span class="required-mark" aria-hidden="true">*</span></label>
+                    <input type="text" id="searchInput" placeholder="Invoice #, customer, PO, traveller, route, WO…"
+                        aria-required="true" autocomplete="off">
+                    <div id="searchError" class="inline-error" role="alert" hidden></div>
+                </div>
+                <div class="search-actions">
+                    <button type="button" class="btn btn-primary" onclick="searchTrips()">Search</button>
+                    <button type="button" class="btn btn-secondary" id="clearSearch"
+                        onclick="clearSearchAndFetch()">Reset</button>
+                </div>
+            </div>
+        </section>
+
+        <section id="sectionPending" class="page-section">
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Yantriki Inv.</th>
+                            <th>Customer</th>
+                            <th>Location</th>
+                            <th>PO Order</th>
+                            <th>Traveller</th>
+                            <th>Travel Dates</th>
+                            <th>Created By</th>
+                            <th>Created</th>
+                            <th>Attachment</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pendingList"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="sectionAll" class="page-section hidden">
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Yantriki Inv.</th>
+                            <th>Customer</th>
+                            <th>Location</th>
+                            <th>PO Order</th>
+                            <th>Traveller</th>
+                            <th>Travel Dates</th>
+                            <th>Status</th>
+                            <th>Approved By</th>
+                            <th>Attachment</th>
+                        </tr>
+                    </thead>
+                    <tbody id="allTripsList"></tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <!-- Rejection Modal -->
+    <div class="modal-overlay" id="rejectModal">
+        <div class="modal-content">
+            <h3>Reject Trip</h3>
+            <p>Please provide a reason for rejection:</p>
+            <textarea id="rejectionReason" placeholder="Enter rejection reason..."></textarea>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeRejectModal()">Cancel</button>
+                <button type="button" class="btn btn-reject" id="confirmRejectBtn">Reject Trip</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/approver.js"></script>
+</body>
+
+</html>
