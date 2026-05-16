@@ -405,7 +405,7 @@ function renderTrips(data) {
             <td>${esc(formatAuditDate(trip.updatedDate))}</td>
             <td>${docLink}</td>
             <td class="actions">
-                ${currentUserRole === 'approver' ? `
+                ${currentUserRole && currentUserRole.toLowerCase() === 'approver' ? `
                 <button type="button" class="btn btn-approve btn-sm" data-action="approve" ${trip.status && trip.status !== 'pending' ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>Approve</button>
                 <button type="button" class="btn btn-reject btn-sm" data-action="reject" ${trip.status && trip.status !== 'pending' ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>Reject</button>
                 ` : `
@@ -415,7 +415,7 @@ function renderTrips(data) {
             </td>
         `;
 
-    if (currentUserRole === 'approver') {
+    if (currentUserRole && currentUserRole.toLowerCase() === 'approver') {
       tr.querySelector('[data-action="approve"]').addEventListener('click', () => approveTrip(inv));
       tr.querySelector('[data-action="reject"]').addEventListener('click', () => rejectTrip(inv));
     } else {

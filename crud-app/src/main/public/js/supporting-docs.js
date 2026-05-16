@@ -131,7 +131,7 @@ function renderDocs() {
         let actions = '';
         if (isReadOnly) {
             actions = '<span style="color:#999;font-size:12px;">—</span>';
-        } else if (currentUserRole === 'approver') {
+        } else if (currentUserRole && currentUserRole.toLowerCase() === 'approver') {
             actions = `<div class="doc-actions">
            <button type="button" class="btn btn-approve btn-sm" onclick="approveTrip()">Approve</button>
            <button type="button" class="btn btn-reject btn-sm" onclick="rejectTrip()">Reject</button>
