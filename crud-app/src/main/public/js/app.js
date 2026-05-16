@@ -76,6 +76,8 @@ async function apiFetch(url, options = {}) {
   return res;
 }
 
+let currentUserRole = null;
+
 async function initSession() {
   const res = await fetch('/api/auth/me', { credentials: 'same-origin' });
   if (!res.ok) {
@@ -83,6 +85,7 @@ async function initSession() {
     return false;
   }
   const data = await res.json();
+  currentUserRole = data.role;
   const el = document.getElementById('navUser');
   if (el) el.textContent = data.username;
   return true;
@@ -308,6 +311,49 @@ async function deleteTrip(invoiceKey) {
   }
 }
 
+async function approveTrip(invoice) {
+  if (!confirm('Are you sure you want to approve this trip?')) return;
+  try {
+    const response = await apiFetch(`${API_URL}/${encodeURIComponent(invoice)}/approve`, {
+      method: 'POST'
+    });
+    const result = await response.json().catch(() => ({}));
+    if (response.ok) {
+      alert('Trip approved successfully!');
+      fetchTrips();
+    } else {
+      alert(result.error || 'Failed to approve trip.');
+    }
+  } catch (error) {
+    if (error.message === 'Unauthorized') return;
+    console.error('Error approving trip:', error);
+    alert('Error approving trip.');
+  }
+}
+
+async function rejectTrip(invoice) {
+  const reason = prompt('Please provide a reason for rejection:');
+  if (reason === null) return;
+  try {
+    const response = await apiFetch(`${API_URL}/${encodeURIComponent(invoice)}/reject`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: reason.trim() || 'No reason provided' })
+    });
+    const result = await response.json().catch(() => ({}));
+    if (response.ok) {
+      alert('Trip rejected.');
+      fetchTrips();
+    } else {
+      alert(result.error || 'Failed to reject trip.');
+    }
+  } catch (error) {
+    if (error.message === 'Unauthorized') return;
+    console.error('Error rejecting trip:', error);
+    alert('Error rejecting trip.');
+  }
+}
+
 function renderTrips(data) {
   tripList.innerHTML = '';
   if (data.length === 0) {
@@ -358,15 +404,23 @@ function renderTrips(data) {
             <td>${esc(formatAuditDate(trip.updatedDate))}</td>
             <td>${docLink}</td>
             <td class="actions">
+                ${currentUserRole === 'approver' || currentUserRole === 'admin' ? `
+                <button type="button" class="btn btn-approve btn-sm" data-action="approve" ${trip.status && trip.status !== 'pending' ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>Approve</button>
+                <button type="button" class="btn btn-reject btn-sm" data-action="reject" ${trip.status && trip.status !== 'pending' ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>Reject</button>
+                ` : `
                 <button type="button" class="btn btn-edit">Edit</button>
                 <button type="button" class="btn btn-delete">Delete</button>
+                `}
             </td>
         `;
 
-    tr.querySelector('.btn-edit').addEventListener('click', () => editTrip(trip));
-    tr
-      .querySelector('.btn-delete')
-      .addEventListener('click', () => deleteTrip(inv));
+    if (currentUserRole === 'approver' || currentUserRole === 'admin') {
+      tr.querySelector('[data-action="approve"]').addEventListener('click', () => approveTrip(inv));
+      tr.querySelector('[data-action="reject"]').addEventListener('click', () => rejectTrip(inv));
+    } else {
+      tr.querySelector('.btn-edit').addEventListener('click', () => editTrip(trip));
+      tr.querySelector('.btn-delete').addEventListener('click', () => deleteTrip(inv));
+    }
 
     tripList.appendChild(tr);
   });
