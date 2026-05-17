@@ -203,6 +203,16 @@ async function ensureAdminUsers() {
     console.log('PostgreSQL: added role column to admin_users table.');
   }
 
+  // Legacy migration: Drop NOT NULL constraint on old rolename column if it exists
+  const { rows: rolenameCheck } = await pool.query(`
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'admin_users' AND column_name = 'rolename'
+  `);
+  if (rolenameCheck.length > 0) {
+    await pool.query('ALTER TABLE admin_users ALTER COLUMN rolename DROP NOT NULL');
+    console.log('PostgreSQL: dropped NOT NULL constraint on legacy rolename column in admin_users.');
+  }
+
   const adminSeeds = [
     ['admin', 'admin', 'admin'],
     ['admin1', 'admin1', 'admin']
