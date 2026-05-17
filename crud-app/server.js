@@ -457,17 +457,36 @@ app.get('/api/trips', requireAuth, async (req, res) => {
   const finalSortOrder = sortOrder.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
   try {
-    const countRes = await pool.query('SELECT COUNT(*) FROM trips WHERE deleted_date IS NULL');
-    const totalCount = parseInt(countRes.rows[0].count);
+    const isGuser = req.session.userRole === 'guser';
+    let countRes;
+    let totalCount;
+    let result;
 
-    const query = `
-      SELECT t.*, (SELECT COUNT(*) FROM supporting_docs sd WHERE sd.trip_invoice_number = t.yantriki_invoice_number) as doc_count
-      FROM trips t
-      WHERE t.deleted_date IS NULL
-      ORDER BY ${finalSortCol} ${finalSortOrder}
-      LIMIT $1 OFFSET $2
-    `;
-    const result = await pool.query(query, [limit, offset]);
+    if (isGuser) {
+      countRes = await pool.query('SELECT COUNT(*) FROM trips WHERE deleted_date IS NULL AND LOWER(created_by) = LOWER($1)', [req.session.username]);
+      totalCount = parseInt(countRes.rows[0].count);
+
+      const query = `
+        SELECT t.*, (SELECT COUNT(*) FROM supporting_docs sd WHERE sd.trip_invoice_number = t.yantriki_invoice_number) as doc_count
+        FROM trips t
+        WHERE t.deleted_date IS NULL AND LOWER(t.created_by) = LOWER($3)
+        ORDER BY ${finalSortCol} ${finalSortOrder}
+        LIMIT $1 OFFSET $2
+      `;
+      result = await pool.query(query, [limit, offset, req.session.username]);
+    } else {
+      countRes = await pool.query('SELECT COUNT(*) FROM trips WHERE deleted_date IS NULL');
+      totalCount = parseInt(countRes.rows[0].count);
+
+      const query = `
+        SELECT t.*, (SELECT COUNT(*) FROM supporting_docs sd WHERE sd.trip_invoice_number = t.yantriki_invoice_number) as doc_count
+        FROM trips t
+        WHERE t.deleted_date IS NULL
+        ORDER BY ${finalSortCol} ${finalSortOrder}
+        LIMIT $1 OFFSET $2
+      `;
+      result = await pool.query(query, [limit, offset]);
+    }
     
     res.json({
       trips: result.rows.map(mapTrip),
@@ -499,7 +518,15 @@ app.get('/api/trips/:invoice', requireAuth, async (req, res) => {
     const invoice = decodeURIComponent(req.params.invoice);
     const result = await pool.query('SELECT * FROM trips WHERE yantriki_invoice_number = $1 AND deleted_date IS NULL', [invoice]);
     if (result.rows.length === 0) { res.status(404).json({ error: 'Trip not found' }); return; }
-    res.json(mapTrip(result.rows[0]));
+    
+    // Auth check: guser role can only view their own trip records
+    const trip = result.rows[0];
+    if (req.session.userRole === 'guser' && trip.created_by && trip.created_by.toLowerCase() !== req.session.username.toLowerCase()) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+    
+    res.json(mapTrip(trip));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -507,16 +534,34 @@ app.get('/api/trips/search', requireAuth, async (req, res) => {
   const keyword = req.query.keyword;
   if (!keyword) { res.json([]); return; }
   try {
-    const query = `
-      SELECT t.*, (SELECT COUNT(*) FROM supporting_docs sd WHERE sd.trip_invoice_number = t.yantriki_invoice_number) as doc_count
-      FROM trips t
-      WHERE t.deleted_date IS NULL AND (
-        t.yantriki_invoice_number ILIKE $1 OR t.customer_name ILIKE $1 OR t.customer_location ILIKE $1 OR 
-        t.po_order ILIKE $1 OR t.traveller_name ILIKE $1 OR t.travel_route ILIKE $1 OR t.wo_number ILIKE $1
-      )
-    `;
+    const isGuser = req.session.userRole === 'guser';
+    let query;
+    let params;
     const param = `%${keyword}%`;
-    const result = await pool.query(query, [param]);
+
+    if (isGuser) {
+      query = `
+        SELECT t.*, (SELECT COUNT(*) FROM supporting_docs sd WHERE sd.trip_invoice_number = t.yantriki_invoice_number) as doc_count
+        FROM trips t
+        WHERE t.deleted_date IS NULL AND LOWER(t.created_by) = LOWER($2) AND (
+          t.yantriki_invoice_number ILIKE $1 OR t.customer_name ILIKE $1 OR t.customer_location ILIKE $1 OR 
+          t.po_order ILIKE $1 OR t.traveller_name ILIKE $1 OR t.travel_route ILIKE $1 OR t.wo_number ILIKE $1
+        )
+      `;
+      params = [param, req.session.username];
+    } else {
+      query = `
+        SELECT t.*, (SELECT COUNT(*) FROM supporting_docs sd WHERE sd.trip_invoice_number = t.yantriki_invoice_number) as doc_count
+        FROM trips t
+        WHERE t.deleted_date IS NULL AND (
+          t.yantriki_invoice_number ILIKE $1 OR t.customer_name ILIKE $1 OR t.customer_location ILIKE $1 OR 
+          t.po_order ILIKE $1 OR t.traveller_name ILIKE $1 OR t.travel_route ILIKE $1 OR t.wo_number ILIKE $1
+        )
+      `;
+      params = [param];
+    }
+
+    const result = await pool.query(query, params);
     res.json(result.rows.map(mapTrip));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

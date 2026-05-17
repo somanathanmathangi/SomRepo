@@ -471,8 +471,8 @@ function renderTrips(data) {
                 <button type="button" class="btn btn-approve btn-sm" data-action="approve" ${trip.status && trip.status !== 'pending' ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : (trip.docCount === 0 ? 'disabled title="Requires supporting documents" style="opacity: 0.5; cursor: not-allowed;"' : '')}>Approve</button>
                 <button type="button" class="btn btn-reject btn-sm" data-action="reject" ${trip.status && trip.status !== 'pending' ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : (trip.docCount === 0 ? 'disabled title="Requires supporting documents" style="opacity: 0.5; cursor: not-allowed;"' : '')}>Reject</button>
                 ` : `
-                <button type="button" class="btn btn-edit">Edit</button>
-                <button type="button" class="btn btn-delete">Delete</button>
+                <button type="button" class="btn btn-edit" ${trip.status && trip.status.toLowerCase() === 'approved' ? 'disabled style="opacity: 0.5; cursor: not-allowed;" title="Approved records cannot be edited"' : ''}>Edit</button>
+                <button type="button" class="btn btn-delete" ${trip.status && trip.status.toLowerCase() === 'approved' ? 'disabled style="opacity: 0.5; cursor: not-allowed;" title="Approved records cannot be deleted"' : ''}>Delete</button>
                 `}
             </td>
         `;
@@ -481,8 +481,12 @@ function renderTrips(data) {
       tr.querySelector('[data-action="approve"]').addEventListener('click', () => approveTrip(inv));
       tr.querySelector('[data-action="reject"]').addEventListener('click', () => rejectTrip(inv));
     } else {
-      tr.querySelector('.btn-edit').addEventListener('click', () => editTrip(trip));
-      tr.querySelector('.btn-delete').addEventListener('click', () => deleteTrip(inv));
+      if (trip.status && trip.status.toLowerCase() === 'approved') {
+        // Do not bind click handlers for approved records
+      } else {
+        tr.querySelector('.btn-edit').addEventListener('click', () => editTrip(trip));
+        tr.querySelector('.btn-delete').addEventListener('click', () => deleteTrip(inv));
+      }
     }
 
     tripList.appendChild(tr);
