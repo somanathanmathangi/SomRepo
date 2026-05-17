@@ -354,6 +354,7 @@ async function sendTripEmail(trip) {
 app.post('/api/auth/login', async (req, res) => {
   const username = (req.body.username || '').trim();
   const password = req.body.password || '';
+  const portal = req.body.portal || 'regular'; // default to regular
   if (!username || !password) {
     res.status(400).json({ error: 'Username and password are required.' });
     return;
@@ -365,9 +366,29 @@ app.post('/api/auth/login', async (req, res) => {
       res.status(401).json({ error: 'Invalid username or password.' });
       return;
     }
+
+    // Sort rows depending on the portal to prioritize the requested login path
+    const rows = result.rows;
+    rows.sort((a, b) => {
+      const roleA = (a.role || '').toLowerCase();
+      const roleB = (b.role || '').toLowerCase();
+      
+      if (portal === 'approver') {
+        const isApproverA = (roleA === 'approver' || roleA === 'admin');
+        const isApproverB = (roleB === 'approver' || roleB === 'admin');
+        if (isApproverA && !isApproverB) return -1;
+        if (!isApproverA && isApproverB) return 1;
+      } else {
+        const isRegularA = (roleA === 'guser');
+        const isRegularB = (roleB === 'guser');
+        if (isRegularA && !isRegularB) return -1;
+        if (!isRegularA && isRegularB) return 1;
+      }
+      return 0;
+    });
     
     let matchedUser = null;
-    for (const dbUser of result.rows) {
+    for (const dbUser of rows) {
       const storedPass = dbUser.password_hash || '';
       // Check if the stored password is a valid bcrypt hash
       const isHashed = (storedPass.startsWith('$2a$') || storedPass.startsWith('$2b$') || storedPass.startsWith('$2y$')) && storedPass.length === 60;
