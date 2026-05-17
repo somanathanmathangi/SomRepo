@@ -488,6 +488,7 @@ function editTrip(trip) {
   document.getElementById('woStartDate').value = trip.woStartDate || '';
   document.getElementById('woEndDate').value = trip.woEndDate || '';
   editingInvoiceKey.value = trip.yantrikiInvoiceNumber;
+  setPkFieldReadonly(true);
   formTitle.textContent = `Update Trip — ${trip.yantrikiInvoiceNumber}`;
   addBtn.style.display = 'none';
   updateBtn.style.display = 'inline-block';
