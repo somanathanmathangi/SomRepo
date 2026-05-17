@@ -63,7 +63,7 @@ async function initSession() {
         }
         const data = await res.json();
         currentUser = data;
-        document.getElementById('navUser').textContent = data.username;
+        document.getElementById('navUser').textContent = `${data.username}/${data.role}`;
         document.getElementById('userRole').textContent = data.role === 'approver' ? '(Approver)' : '(Admin)';
         return true;
     } catch (err) {

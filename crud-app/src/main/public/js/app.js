@@ -91,7 +91,7 @@ async function initSession() {
   currentUserRole = data.role;
   console.log('Main Dashboard: Current User Role detected as:', currentUserRole);
   const el = document.getElementById('navUser');
-  if (el) el.textContent = data.username;
+  if (el) el.textContent = `${data.username}/${data.role}`;
   return true;
 }
 
