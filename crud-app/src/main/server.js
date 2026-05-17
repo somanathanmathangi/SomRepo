@@ -440,6 +440,15 @@ app.get('/api/auth/me', (req, res) => {
   res.json({ username: req.session.username, role: req.session.userRole });
 });
 
+app.get('/api/debug/trips', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT yantriki_invoice_number, traveller_name, created_by, deleted_date FROM trips');
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ==================== TRIP ENDPOINTS ====================
 
 app.get('/api/trips', requireAuth, async (req, res) => {
