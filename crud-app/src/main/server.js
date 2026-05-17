@@ -123,7 +123,8 @@ function requireApprover(req, res, next) {
     res.status(401).json({ error: 'Unauthorized' });
     return;
   }
-  if (req.session.userRole !== 'approver' && req.session.userRole !== 'admin') {
+  const role = (req.session.userRole || '').toLowerCase();
+  if (role !== 'approver' && role !== 'admin') {
     res.status(403).json({ error: 'Approver access required' });
     return;
   }
@@ -457,7 +458,7 @@ app.get('/api/trips', requireAuth, async (req, res) => {
   const finalSortOrder = sortOrder.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
   try {
-    const isGuser = req.session.userRole === 'guser';
+    const isGuser = req.session.userRole && req.session.userRole.toLowerCase() === 'guser';
     let countRes;
     let totalCount;
     let result;
@@ -521,7 +522,7 @@ app.get('/api/trips/:invoice', requireAuth, async (req, res) => {
     
     // Auth check: guser role can only view their own trip records
     const trip = result.rows[0];
-    if (req.session.userRole === 'guser' && trip.created_by && trip.created_by.toLowerCase() !== req.session.username.toLowerCase()) {
+    if (req.session.userRole && req.session.userRole.toLowerCase() === 'guser' && trip.created_by && trip.created_by.toLowerCase() !== req.session.username.toLowerCase()) {
       res.status(403).json({ error: 'Forbidden' });
       return;
     }
@@ -534,7 +535,7 @@ app.get('/api/trips/search', requireAuth, async (req, res) => {
   const keyword = req.query.keyword;
   if (!keyword) { res.json([]); return; }
   try {
-    const isGuser = req.session.userRole === 'guser';
+    const isGuser = req.session.userRole && req.session.userRole.toLowerCase() === 'guser';
     let query;
     let params;
     const param = `%${keyword}%`;

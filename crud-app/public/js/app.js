@@ -252,7 +252,12 @@ async function searchTrips() {
       `${API_URL}/search?keyword=${encodeURIComponent(keyword)}`
     );
     const results = await response.json();
-    renderTrips(results);
+    renderTrips(results, true);
+    
+    // Clear pagination container during search since search displays all matched records flatly
+    const paginationContainer = document.getElementById('pagination');
+    if (paginationContainer) paginationContainer.innerHTML = '';
+
     sectionShowAll.classList.remove('hidden');
   } catch (error) {
     if (error.message === 'Unauthorized') return;
@@ -414,10 +419,11 @@ async function rejectTrip(invoice) {
   }
 }
 
-function renderTrips(data) {
+function renderTrips(data, isSearch = false) {
   tripList.innerHTML = '';
   if (data.length === 0) {
-    tripList.innerHTML = `<tr><td colspan="${EMPTY_COLSPAN}" class="table-empty">No trip records found.</td></tr>`;
+    const emptyMsg = isSearch ? " No reacord for the selected criteria" : "No trip records found.";
+    tripList.innerHTML = `<tr><td colspan="${EMPTY_COLSPAN}" class="table-empty">${emptyMsg}</td></tr>`;
     return;
   }
   data.forEach((trip) => {
