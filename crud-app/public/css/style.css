@@ -608,6 +608,11 @@ th.sortable:hover {
     justify-content: flex-end;
 }
 
+#sectionSearch {
+    min-height: auto;
+    padding-bottom: 0;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .app-header {
