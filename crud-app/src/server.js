@@ -354,16 +354,53 @@ async function sendTripEmail(trip) {
 app.post('/api/auth/login', async (req, res) => {
   const username = (req.body.username || '').trim();
   const password = req.body.password || '';
-  if (!username || !password) { res.status(400).json({ error: 'Username and password are required.' }); return; }
+  if (!username || !password) {
+    res.status(400).json({ error: 'Username and password are required.' });
+    return;
+  }
   try {
-    const result = await pool.query('SELECT password_hash, role FROM admin_users WHERE username = $1', [username]);
-    if (result.rows.length === 0) { res.status(401).json({ error: 'Invalid username or password.' }); return; }
-    const ok = await bcrypt.compare(password, result.rows[0].password_hash);
-    if (!ok) { res.status(401).json({ error: 'Invalid username or password.' }); return; }
-    req.session.username = username;
-    req.session.userRole = result.rows[0].role;
-    res.json({ username, role: result.rows[0].role });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    // Query username case-insensitively to prevent any casing discrepancies
+    const result = await pool.query('SELECT username, password_hash, role FROM admin_users WHERE LOWER(username) = LOWER($1)', [username]);
+    if (result.rows.length === 0) {
+      res.status(401).json({ error: 'Invalid username or password.' });
+      return;
+    }
+    
+    const dbUser = result.rows[0];
+    const storedPass = dbUser.password_hash || '';
+    
+    // Check if the stored password in the database is a valid bcrypt hash
+    const isHashed = (storedPass.startsWith('$2a$') || storedPass.startsWith('$2b$') || storedPass.startsWith('$2y$')) && storedPass.length === 60;
+    
+    let ok = false;
+    if (isHashed) {
+      ok = await bcrypt.compare(password, storedPass);
+    } else {
+      // Fallback for plain text password checks
+      ok = (password === storedPass);
+      if (ok) {
+        // Automatically hash and secure the plain text password in the database on-the-fly!
+        try {
+          const hashed = await bcrypt.hash(password, 10);
+          await pool.query('UPDATE admin_users SET password_hash = $1 WHERE username = $2', [hashed, dbUser.username]);
+          console.log(`PostgreSQL: Automatically hashed and secured plain text password for user "${dbUser.username}" on successful login.`);
+        } catch (hashErr) {
+          console.error('PostgreSQL: Failed to auto-hash plain text password:', hashErr.message);
+        }
+      }
+    }
+
+    if (!ok) {
+      res.status(401).json({ error: 'Invalid username or password.' });
+      return;
+    }
+
+    req.session.username = dbUser.username; // Use proper cased username from the DB
+    req.session.userRole = dbUser.role;
+    res.json({ username: dbUser.username, role: dbUser.role });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.post('/api/auth/logout', (req, res) => {
