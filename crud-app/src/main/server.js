@@ -523,23 +523,6 @@ app.get('/api/trips/pending', requireApprover, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/trips/:invoice', requireAuth, async (req, res) => {
-  try {
-    const invoice = decodeURIComponent(req.params.invoice);
-    const result = await pool.query('SELECT * FROM trips WHERE yantriki_invoice_number = $1 AND deleted_date IS NULL', [invoice]);
-    if (result.rows.length === 0) { res.status(404).json({ error: 'Trip not found' }); return; }
-    
-    // Auth check: guser role can only view their own trip records
-    const trip = result.rows[0];
-    if (req.session.userRole && req.session.userRole.toLowerCase() === 'guser' && trip.created_by && trip.created_by.toLowerCase() !== req.session.username.toLowerCase()) {
-      res.status(403).json({ error: 'Forbidden' });
-      return;
-    }
-    
-    res.json(mapTrip(trip));
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
 app.get('/api/trips/search', requireAuth, async (req, res) => {
   const keyword = req.query.keyword;
   if (!keyword) { res.json([]); return; }
@@ -583,6 +566,23 @@ app.get('/api/trips/search', requireAuth, async (req, res) => {
 
     const result = await pool.query(query, params);
     res.json(result.rows.map(mapTrip));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/trips/:invoice', requireAuth, async (req, res) => {
+  try {
+    const invoice = decodeURIComponent(req.params.invoice);
+    const result = await pool.query('SELECT * FROM trips WHERE yantriki_invoice_number = $1 AND deleted_date IS NULL', [invoice]);
+    if (result.rows.length === 0) { res.status(404).json({ error: 'Trip not found' }); return; }
+    
+    // Auth check: guser role can only view their own trip records
+    const trip = result.rows[0];
+    if (req.session.userRole && req.session.userRole.toLowerCase() === 'guser' && trip.created_by && trip.created_by.toLowerCase() !== req.session.username.toLowerCase()) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+    
+    res.json(mapTrip(trip));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
