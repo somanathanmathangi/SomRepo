@@ -76,6 +76,10 @@ async function apiFetch(url, options = {}) {
     window.location.href = '/login.html';
     throw new Error('Unauthorized');
   }
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}));
+    throw new Error(errBody.error || ('HTTP Error: ' + res.status));
+  }
   return res;
 }
 
@@ -262,7 +266,7 @@ async function searchTrips() {
   } catch (error) {
     if (error.message === 'Unauthorized') return;
     console.error('Error searching:', error);
-    showSearchError('Search failed. Please try again.');
+    showSearchError(error.message);
   }
 }
 
