@@ -366,38 +366,44 @@ app.post('/api/auth/login', async (req, res) => {
       return;
     }
     
-    const dbUser = result.rows[0];
-    const storedPass = dbUser.password_hash || '';
-    
-    // Check if the stored password in the database is a valid bcrypt hash
-    const isHashed = (storedPass.startsWith('$2a$') || storedPass.startsWith('$2b$') || storedPass.startsWith('$2y$')) && storedPass.length === 60;
-    
-    let ok = false;
-    if (isHashed) {
-      ok = await bcrypt.compare(password, storedPass);
-    } else {
-      // Fallback for plain text password checks
-      ok = (password === storedPass);
-      if (ok) {
-        // Automatically hash and secure the plain text password in the database on-the-fly!
-        try {
-          const hashed = await bcrypt.hash(password, 10);
-          await pool.query('UPDATE admin_users SET password_hash = $1 WHERE username = $2', [hashed, dbUser.username]);
-          console.log(`PostgreSQL: Automatically hashed and secured plain text password for user "${dbUser.username}" on successful login.`);
-        } catch (hashErr) {
-          console.error('PostgreSQL: Failed to auto-hash plain text password:', hashErr.message);
+    let matchedUser = null;
+    for (const dbUser of result.rows) {
+      const storedPass = dbUser.password_hash || '';
+      // Check if the stored password is a valid bcrypt hash
+      const isHashed = (storedPass.startsWith('$2a$') || storedPass.startsWith('$2b$') || storedPass.startsWith('$2y$')) && storedPass.length === 60;
+      
+      let ok = false;
+      if (isHashed) {
+        ok = await bcrypt.compare(password, storedPass);
+      } else {
+        // Fallback for plain text password checks
+        ok = (password === storedPass);
+        if (ok) {
+          // Automatically hash and secure the plain text password in the database on-the-fly!
+          try {
+            const hashed = await bcrypt.hash(password, 10);
+            await pool.query('UPDATE admin_users SET password_hash = $1 WHERE username = $2 AND role = $3', [hashed, dbUser.username, dbUser.role]);
+            console.log(`PostgreSQL: Automatically hashed and secured plain text password for user "${dbUser.username}" with role "${dbUser.role}" on successful login.`);
+          } catch (hashErr) {
+            console.error('PostgreSQL: Failed to auto-hash plain text password:', hashErr.message);
+          }
         }
+      }
+      
+      if (ok) {
+        matchedUser = dbUser;
+        break; // Successfully authenticated this user record!
       }
     }
 
-    if (!ok) {
+    if (!matchedUser) {
       res.status(401).json({ error: 'Invalid username or password.' });
       return;
     }
 
-    req.session.username = dbUser.username; // Use proper cased username from the DB
-    req.session.userRole = dbUser.role;
-    res.json({ username: dbUser.username, role: dbUser.role });
+    req.session.username = matchedUser.username; // Use proper cased username from the DB
+    req.session.userRole = matchedUser.role;
+    res.json({ username: matchedUser.username, role: matchedUser.role });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
