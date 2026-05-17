@@ -203,14 +203,41 @@ async function ensureAdminUsers() {
     console.log('PostgreSQL: added role column to admin_users table.');
   }
 
-  // Legacy migration: Drop NOT NULL constraint on old rolename column if it exists
+  // Legacy migration: Drop composite primary key and NOT NULL constraint on old rolename column if it exists
   const { rows: rolenameCheck } = await pool.query(`
     SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'admin_users' AND column_name = 'rolename'
   `);
   if (rolenameCheck.length > 0) {
-    await pool.query('ALTER TABLE admin_users ALTER COLUMN rolename DROP NOT NULL');
-    console.log('PostgreSQL: dropped NOT NULL constraint on legacy rolename column in admin_users.');
+    try {
+      // Find the name of any primary key constraint on admin_users
+      const constraintRes = await pool.query(`
+        SELECT conname 
+        FROM pg_constraint 
+        WHERE conrelid = 'admin_users'::regclass AND contype = 'p'
+      `);
+      for (const r of constraintRes.rows) {
+        await pool.query(`ALTER TABLE admin_users DROP CONSTRAINT IF EXISTS "${r.conname}" CASCADE`);
+        console.log(`PostgreSQL: dropped legacy primary key constraint "${r.conname}"`);
+      }
+      
+      // Deduplicate admin_users by username (keeps the latest ctid entry)
+      await pool.query(`
+        DELETE FROM admin_users a USING admin_users b 
+        WHERE a.username = b.username AND a.ctid < b.ctid
+      `);
+      console.log('PostgreSQL: deduplicated admin_users table.');
+
+      // Re-add primary key constraint on username alone
+      await pool.query('ALTER TABLE admin_users ADD PRIMARY KEY (username)');
+      console.log('PostgreSQL: added primary key constraint on username.');
+
+      // Now we can safely drop NOT NULL from rolename
+      await pool.query('ALTER TABLE admin_users ALTER COLUMN rolename DROP NOT NULL');
+      console.log('PostgreSQL: dropped NOT NULL constraint on legacy rolename column.');
+    } catch (migrationErr) {
+      console.error('PostgreSQL: migration error/warning:', migrationErr.message);
+    }
   }
 
   const adminSeeds = [
