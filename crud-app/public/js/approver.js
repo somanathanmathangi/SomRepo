@@ -64,7 +64,7 @@ async function initSession() {
         const data = await res.json();
         currentUser = data;
         document.getElementById('navUser').textContent = `${data.username}/${data.role}`;
-        document.getElementById('userRole').textContent = data.role === 'approver' ? '(Approver)' : '(Admin)';
+        document.getElementById('userRole').textContent = '';
         return true;
     } catch (err) {
         window.location.href = '/approver-login.html';

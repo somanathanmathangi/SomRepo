@@ -28,7 +28,7 @@ const sectionShowAll = document.getElementById('sectionShowAll');
 const sectionRecord = document.getElementById('sectionRecord');
 const sectionSearch = document.getElementById('sectionSearch');
 
-const EMPTY_COLSPAN = 19;
+const EMPTY_COLSPAN = 20;
 let currentPage = 1;
 let sortBy = 'yantriki_invoice_number';
 let sortOrder = 'ASC';
@@ -80,6 +80,7 @@ async function apiFetch(url, options = {}) {
 }
 
 let currentUserRole = null;
+let currentUsername = null;
 
 async function initSession() {
   const res = await fetch('/api/auth/me', { credentials: 'same-origin' });
@@ -89,9 +90,22 @@ async function initSession() {
   }
   const data = await res.json();
   currentUserRole = data.role;
+  currentUsername = data.username;
   console.log('Main Dashboard: Current User Role detected as:', currentUserRole);
   const el = document.getElementById('navUser');
   if (el) el.textContent = `${data.username}/${data.role}`;
+
+  // Hide Create Trip option (Record Trip tab) for Admin/Approver roles
+  if (currentUserRole && (currentUserRole.toLowerCase() === 'admin' || currentUserRole.toLowerCase() === 'approver')) {
+    const recordTab = document.getElementById('tabRecord');
+    if (recordTab) recordTab.style.display = 'none';
+  }
+
+  // Auto-populate traveller name with username if the role is guser
+  if (currentUserRole && currentUserRole.toLowerCase() === 'guser') {
+    if (travellerNameInput) travellerNameInput.value = currentUsername || '';
+  }
+
   return true;
 }
 
@@ -429,6 +443,8 @@ function renderTrips(data) {
       ? `<br><span class="rejection-reason">Reason: ${esc(trip.rejectionReason)}</span>`
       : '';
 
+    const isApproverOrAdmin = currentUserRole && (currentUserRole.toLowerCase() === 'approver' || currentUserRole.toLowerCase() === 'admin');
+
     tr.innerHTML = `
             <td class="cell-mono">${esc(inv)}</td>
             <td>${esc(trip.customerName)}</td>
@@ -449,8 +465,9 @@ function renderTrips(data) {
             <td>${esc(formatAuditDate(trip.updatedDate))}</td>
             <td>${docLink}</td>
             <td>${statusBadge}${rejectionReason}</td>
+            <td>${esc(trip.approvedBy || '—')}</td>
             <td class="actions">
-                ${currentUserRole && currentUserRole.toLowerCase() === 'approver' ? `
+                ${isApproverOrAdmin ? `
                 <button type="button" class="btn btn-approve btn-sm" data-action="approve" ${trip.status && trip.status !== 'pending' ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : (trip.docCount === 0 ? 'disabled title="Requires supporting documents" style="opacity: 0.5; cursor: not-allowed;"' : '')}>Approve</button>
                 <button type="button" class="btn btn-reject btn-sm" data-action="reject" ${trip.status && trip.status !== 'pending' ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : (trip.docCount === 0 ? 'disabled title="Requires supporting documents" style="opacity: 0.5; cursor: not-allowed;"' : '')}>Reject</button>
                 ` : `
@@ -460,7 +477,7 @@ function renderTrips(data) {
             </td>
         `;
 
-    if (currentUserRole && currentUserRole.toLowerCase() === 'approver') {
+    if (isApproverOrAdmin) {
       tr.querySelector('[data-action="approve"]').addEventListener('click', () => approveTrip(inv));
       tr.querySelector('[data-action="reject"]').addEventListener('click', () => rejectTrip(inv));
     } else {
@@ -517,6 +534,11 @@ function resetForm() {
   // Clear file input
   const fileInput = document.getElementById('tripFile');
   if (fileInput) fileInput.value = '';
+
+  // Auto-populate traveller name with username if the role is guser
+  if (currentUserRole && currentUserRole.toLowerCase() === 'guser') {
+    if (travellerNameInput) travellerNameInput.value = currentUsername || '';
+  }
 
   setPkFieldReadonly(false);
   formTitle.textContent = 'Record New Trip';
