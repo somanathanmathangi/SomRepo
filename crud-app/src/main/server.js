@@ -554,8 +554,13 @@ app.get('/api/trips/search', requireAuth, async (req, res) => {
         SELECT t.*, (SELECT COUNT(*) FROM supporting_docs sd WHERE sd.trip_invoice_number = t.yantriki_invoice_number) as doc_count
         FROM trips t
         WHERE t.deleted_date IS NULL AND LOWER(t.created_by) = LOWER($2) AND (
-          t.yantriki_invoice_number ILIKE $1 OR t.customer_name ILIKE $1 OR t.customer_location ILIKE $1 OR 
-          t.po_order ILIKE $1 OR t.traveller_name ILIKE $1 OR t.travel_route ILIKE $1 OR t.wo_number ILIKE $1
+          COALESCE(t.yantriki_invoice_number, '') ILIKE $1 OR 
+          COALESCE(t.customer_name, '') ILIKE $1 OR 
+          COALESCE(t.customer_location, '') ILIKE $1 OR 
+          COALESCE(t.po_order, '') ILIKE $1 OR 
+          COALESCE(t.traveller_name, '') ILIKE $1 OR 
+          COALESCE(t.travel_route, '') ILIKE $1 OR 
+          COALESCE(t.wo_number, '') ILIKE $1
         )
       `;
       params = [param, req.session.username];
@@ -564,8 +569,13 @@ app.get('/api/trips/search', requireAuth, async (req, res) => {
         SELECT t.*, (SELECT COUNT(*) FROM supporting_docs sd WHERE sd.trip_invoice_number = t.yantriki_invoice_number) as doc_count
         FROM trips t
         WHERE t.deleted_date IS NULL AND (
-          t.yantriki_invoice_number ILIKE $1 OR t.customer_name ILIKE $1 OR t.customer_location ILIKE $1 OR 
-          t.po_order ILIKE $1 OR t.traveller_name ILIKE $1 OR t.travel_route ILIKE $1 OR t.wo_number ILIKE $1
+          COALESCE(t.yantriki_invoice_number, '') ILIKE $1 OR 
+          COALESCE(t.customer_name, '') ILIKE $1 OR 
+          COALESCE(t.customer_location, '') ILIKE $1 OR 
+          COALESCE(t.po_order, '') ILIKE $1 OR 
+          COALESCE(t.traveller_name, '') ILIKE $1 OR 
+          COALESCE(t.travel_route, '') ILIKE $1 OR 
+          COALESCE(t.wo_number, '') ILIKE $1
         )
       `;
       params = [param];
