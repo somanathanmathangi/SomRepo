@@ -67,12 +67,9 @@ async function loadTrip() {
         statusEl.className = `status-badge status-${currentTrip.status || 'pending'}`;
 
         isReadOnly = currentTrip.status === 'approved' || currentTrip.submittedForApproval;
-        const isApproverOrAdmin = currentUserRole && (currentUserRole.toLowerCase() === 'approver' || currentUserRole.toLowerCase() === 'admin');
-        alert('DEBUG: status=' + currentTrip.status + ' | submittedForApproval=' + currentTrip.submittedForApproval + ' | isReadOnly=' + isReadOnly + ' | isApproverOrAdmin=' + isApproverOrAdmin + ' | userRole=' + currentUserRole);
+        const isApproverOnly = currentUserRole && currentUserRole.toLowerCase() === 'approver';
         const submitBtn = document.getElementById('sdSubmitApprovalBtn');
-        if (isReadOnly || isApproverOrAdmin) {
-            alert('DEBUG: HIDING submit button');
-            console.log('DEBUG: HIDING submit button');
+        if (isReadOnly || isApproverOnly) {
             if (isReadOnly) {
                 const banner = document.getElementById('sdReadonlyBanner');
                 banner.classList.remove('hidden');
@@ -86,8 +83,6 @@ async function loadTrip() {
             document.getElementById('sdAddNewBtn').style.display = 'none';
             if (submitBtn) submitBtn.style.display = 'none';
         } else {
-            alert('DEBUG: SHOWING submit button');
-            console.log('DEBUG: SHOWING submit button');
             document.getElementById('sdReadonlyBanner').classList.add('hidden');
             document.getElementById('sdAddNewBtn').style.display = 'inline-block';
             if (submitBtn) submitBtn.style.display = 'inline-block';
