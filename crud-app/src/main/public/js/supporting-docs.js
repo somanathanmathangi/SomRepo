@@ -68,11 +68,10 @@ async function loadTrip() {
 
         isReadOnly = currentTrip.status === 'approved' || currentTrip.submittedForApproval;
         const isApproverOrAdmin = currentUserRole && (currentUserRole.toLowerCase() === 'approver' || currentUserRole.toLowerCase() === 'admin');
-        console.log('DEBUG: currentTrip=', JSON.stringify(currentTrip));
-        console.log('DEBUG: status=', currentTrip.status, '| submittedForApproval=', currentTrip.submittedForApproval);
-        console.log('DEBUG: isReadOnly=', isReadOnly, '| isApproverOrAdmin=', isApproverOrAdmin, '| userRole=', currentUserRole);
+        alert('DEBUG: status=' + currentTrip.status + ' | submittedForApproval=' + currentTrip.submittedForApproval + ' | isReadOnly=' + isReadOnly + ' | isApproverOrAdmin=' + isApproverOrAdmin + ' | userRole=' + currentUserRole);
         const submitBtn = document.getElementById('sdSubmitApprovalBtn');
         if (isReadOnly || isApproverOrAdmin) {
+            alert('DEBUG: HIDING submit button');
             console.log('DEBUG: HIDING submit button');
             if (isReadOnly) {
                 const banner = document.getElementById('sdReadonlyBanner');
@@ -87,6 +86,7 @@ async function loadTrip() {
             document.getElementById('sdAddNewBtn').style.display = 'none';
             if (submitBtn) submitBtn.style.display = 'none';
         } else {
+            alert('DEBUG: SHOWING submit button');
             console.log('DEBUG: SHOWING submit button');
             document.getElementById('sdReadonlyBanner').classList.add('hidden');
             document.getElementById('sdAddNewBtn').style.display = 'inline-block';
@@ -180,7 +180,6 @@ async function showForm(doc) {
     document.getElementById('sdForm').classList.remove('hidden');
 
     if (doc) {
-        // Edit mode
         document.getElementById('sdFormTitle').textContent = 'Edit Document';
         document.getElementById('sdEditId').value = doc.id;
         document.getElementById('sdDate').value = doc.docDate;
@@ -191,7 +190,6 @@ async function showForm(doc) {
         document.getElementById('sdPageNo').value = doc.pageNo;
         document.getElementById('sdSaveBtn').textContent = 'Update Document';
     } else {
-        // Add mode
         document.getElementById('sdFormTitle').textContent = 'Add New Document';
         document.getElementById('sdEditId').value = '';
         document.getElementById('sdDate').value = new Date().toISOString().split('T')[0];
@@ -201,7 +199,6 @@ async function showForm(doc) {
         document.getElementById('sdBillAmount').value = '';
         document.getElementById('sdFile').value = '';
         document.getElementById('sdSaveBtn').textContent = 'Add Document';
-
         const nextPage = await getNextPageNo();
         document.getElementById('sdPageNo').value = nextPage;
     }
@@ -229,7 +226,6 @@ function validateForm() {
 async function saveDoc() {
     if (!validateForm()) return;
     if (isReadOnly) { alert('Cannot modify documents for an approved trip.'); return; }
-
     const invoice = getInvoiceFromUrl();
     const editId = document.getElementById('sdEditId').value;
     const formData = new FormData();
@@ -239,24 +235,16 @@ async function saveDoc() {
     formData.append('category', document.getElementById('sdCategory').value);
     formData.append('billAmount', document.getElementById('sdBillAmount').value);
     formData.append('pageNo', document.getElementById('sdPageNo').value);
-
     const fileInput = document.getElementById('sdFile');
     if (fileInput && fileInput.files.length > 0) {
         formData.append('file', fileInput.files[0]);
     }
-
     try {
         let res;
         if (editId) {
-            res = await apiFetch(`${API_URL}/${encodeURIComponent(invoice)}/documents/${editId}`, {
-                method: 'PUT',
-                body: formData
-            });
+            res = await apiFetch(`${API_URL}/${encodeURIComponent(invoice)}/documents/${editId}`, { method: 'PUT', body: formData });
         } else {
-            res = await apiFetch(`${API_URL}/${encodeURIComponent(invoice)}/documents`, {
-                method: 'POST',
-                body: formData
-            });
+            res = await apiFetch(`${API_URL}/${encodeURIComponent(invoice)}/documents`, { method: 'POST', body: formData });
         }
         if (res.ok) {
             hideForm();
@@ -280,7 +268,6 @@ async function editDoc(id) {
 async function deleteDoc(id) {
     if (isReadOnly) { alert('Cannot modify documents for an approved trip.'); return; }
     if (!confirm('Are you sure you want to delete this document entry?')) return;
-
     const invoice = getInvoiceFromUrl();
     try {
         const res = await apiFetch(`${API_URL}/${encodeURIComponent(invoice)}/documents/${id}`, { method: 'DELETE' });
@@ -335,9 +322,7 @@ async function submitTripForApproval() {
         return;
     }
     try {
-        const response = await apiFetch(`/api/trips/${encodeURIComponent(invoice)}/submit-approval`, {
-            method: 'POST'
-        });
+        const response = await apiFetch(`/api/trips/${encodeURIComponent(invoice)}/submit-approval`, { method: 'POST' });
         const result = await response.json().catch(() => ({}));
         if (response.ok) {
             alert('Trip successfully submitted for approval. Record has been freed.');
@@ -350,23 +335,18 @@ async function submitTripForApproval() {
     }
 }
 
-
 document.addEventListener('DOMContentLoaded', async () => {
     if (!(await initSession())) return;
-
     document.getElementById('logoutBtn').addEventListener('click', async () => {
         try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }); } catch { }
         window.location.href = '/login.html';
     });
-
     document.getElementById('sdSaveBtn').addEventListener('click', saveDoc);
     document.getElementById('sdCancelBtn').addEventListener('click', hideForm);
     document.getElementById('sdAddNewBtn').addEventListener('click', () => showForm(null));
-
     const submitBtn = document.getElementById('sdSubmitApprovalBtn');
     if (submitBtn) {
         submitBtn.addEventListener('click', submitTripForApproval);
     }
-
     await loadTrip();
 });
