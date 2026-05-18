@@ -335,8 +335,8 @@ async function submitTripForApproval() {
         });
         const result = await response.json().catch(() => ({}));
         if (response.ok) {
-            alert('Trip successfully submitted for approval.');
-            window.location.reload();
+            alert('Trip successfully submitted for approval. Record has been freed.');
+            window.location.href = '/';
         } else {
             alert(result.error || 'Failed to submit trip for approval.');
         }
@@ -357,7 +357,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('sdSaveBtn').addEventListener('click', saveDoc);
     document.getElementById('sdCancelBtn').addEventListener('click', hideForm);
     document.getElementById('sdAddNewBtn').addEventListener('click', () => showForm(null));
-    
+
     const submitBtn = document.getElementById('sdSubmitApprovalBtn');
     if (submitBtn) {
         submitBtn.addEventListener('click', submitTripForApproval);
