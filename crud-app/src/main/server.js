@@ -331,7 +331,7 @@ function getEmailTransporter() {
 async function sendTripEmail(trip) {
   const transporter = getEmailTransporter();
   const emailTo = process.env.EMAIL_TO || 'somanathan_c@yahoo.com';
-  
+
   let actionText = 'Submitted for Approval';
   if (trip.status === 'approved') {
     actionText = 'Approved';
@@ -433,7 +433,7 @@ app.post('/api/auth/login', async (req, res) => {
     rows.sort((a, b) => {
       const roleA = (a.role || '').toLowerCase();
       const roleB = (b.role || '').toLowerCase();
-      
+
       if (portal === 'approver') {
         const isApproverA = (roleA === 'approver' || roleA === 'admin');
         const isApproverB = (roleB === 'approver' || roleB === 'admin');
@@ -447,13 +447,13 @@ app.post('/api/auth/login', async (req, res) => {
       }
       return 0;
     });
-    
+
     let matchedUser = null;
     for (const dbUser of rows) {
       const storedPass = dbUser.password_hash || '';
       // Check if the stored password is a valid bcrypt hash
       const isHashed = (storedPass.startsWith('$2a$') || storedPass.startsWith('$2b$') || storedPass.startsWith('$2y$')) && storedPass.length === 60;
-      
+
       let ok = false;
       if (isHashed) {
         ok = await bcrypt.compare(password, storedPass);
@@ -471,7 +471,7 @@ app.post('/api/auth/login', async (req, res) => {
           }
         }
       }
-      
+
       if (ok) {
         matchedUser = dbUser;
         break; // Successfully authenticated this user record!
@@ -588,7 +588,7 @@ app.get('/api/trips', requireAuth, async (req, res) => {
       `;
       result = await pool.query(query, [limit, offset]);
     }
-    
+
     res.json({
       trips: result.rows.map(mapTrip),
       pagination: {
@@ -665,14 +665,14 @@ app.get('/api/trips/:invoice', requireAuth, async (req, res) => {
     const invoice = decodeURIComponent(req.params.invoice);
     const result = await pool.query('SELECT * FROM trips WHERE yantriki_invoice_number = $1 AND deleted_date IS NULL', [invoice]);
     if (result.rows.length === 0) { res.status(404).json({ error: 'Trip not found' }); return; }
-    
+
     // Auth check: guser role can only view their own trip records
     const trip = result.rows[0];
     if (req.session.userRole && req.session.userRole.toLowerCase() === 'guser' && trip.created_by && trip.created_by.toLowerCase() !== req.session.username.toLowerCase()) {
       res.status(403).json({ error: 'Forbidden' });
       return;
     }
-    
+
     res.json(mapTrip(trip));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -758,7 +758,7 @@ app.post('/api/trips/:invoice/submit-approval', requireAuth, requireRegularUser,
     if (tripCheck.rows.length === 0) { return res.status(404).json({ error: 'Trip not found' }); }
     const currentTrip = tripCheck.rows[0];
     if (currentTrip.status === 'approved') { return res.status(400).json({ error: 'Trip is already approved' }); }
-    
+
     const result = await pool.query(`UPDATE trips SET submitted_for_approval = TRUE WHERE yantriki_invoice_number = $1 RETURNING *`, [invoice]);
     if (result.rowCount === 0) { return res.status(404).json({ error: 'Trip not found' }); }
     const trip = mapTrip(result.rows[0]);
@@ -881,6 +881,15 @@ app.get('/api/trips/:invoice/documents/:id/file', requireAuth, async (req, res) 
 });
 
 // ==================== STATIC FILES ====================
+// Set no-cache for HTML files to prevent CDN caching on Render
+app.use((req, res, next) => {
+  if (req.path.endsWith('.html') || req.path === '/') {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
+  next();
+});
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('*', (req, res) => {
