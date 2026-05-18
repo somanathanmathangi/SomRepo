@@ -89,7 +89,8 @@ function mapTrip(row) {
     rejectionReason: row.rejection_reason,
     woStartDate: row.wo_start_date,
     woEndDate: row.wo_end_date,
-    docCount: parseInt(row.doc_count) || 0
+    docCount: parseInt(row.doc_count) || 0,
+    submittedForApproval: Boolean(row.submitted_for_approval)
   };
 }
 
@@ -208,6 +209,7 @@ async function ensureTripAuditColumns() {
   await addIfMissing('rejection_reason', 'TEXT');
   await addIfMissing('wo_start_date', 'TEXT');
   await addIfMissing('wo_end_date', 'TEXT');
+  await addIfMissing('submitted_for_approval', 'BOOLEAN', 'FALSE');
 }
 
 async function ensureAdminUsers() {
@@ -268,7 +270,8 @@ async function initDb() {
       approved_date TIMESTAMPTZ,
       rejection_reason TEXT,
       wo_start_date TEXT,
-      wo_end_date TEXT
+      wo_end_date TEXT,
+      submitted_for_approval BOOLEAN DEFAULT FALSE
     )
   `;
   try {
@@ -328,11 +331,19 @@ function getEmailTransporter() {
 async function sendTripEmail(trip) {
   const transporter = getEmailTransporter();
   const emailTo = process.env.EMAIL_TO || 'somanathan_c@yahoo.com';
-  const subject = `Trip ${trip.yantrikiInvoiceNumber} - ${trip.status === 'pending' ? 'Created' : 'Updated'} & Pending Approval`;
+  
+  let actionText = 'Submitted for Approval';
+  if (trip.status === 'approved') {
+    actionText = 'Approved';
+  } else if (trip.status === 'rejected') {
+    actionText = 'Rejected';
+  }
+
+  const subject = `Trip ${trip.yantrikiInvoiceNumber} - ${actionText}`;
 
   const html = `
-    <h2>Trip Record ${trip.status === 'pending' ? 'Created' : 'Updated'}</h2>
-    <p>A trip record has been ${trip.status === 'pending' ? 'created' : 'updated'} and is pending approval.</p>
+    <h2>Trip Record ${actionText}</h2>
+    <p>A trip record has been ${actionText.toLowerCase()} and requires review.</p>
     <h3>Trip Details:</h3>
     <table style="border-collapse: collapse; width: 100%;">
       <tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Yantriki Invoice Number</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${trip.yantrikiInvoiceNumber}</td></tr>
@@ -674,7 +685,6 @@ app.post('/api/trips', requireAuth, requireRegularUser, async (req, res) => {
   try {
     const result = await pool.query(insertQuery, values);
     const trip = mapTrip(result.rows[0]);
-    await sendTripEmail(trip);
     res.json(trip);
   } catch (err) {
     if (err.code === '23505') { res.status(409).json({ error: 'A record with this Yantriki Invoice Number already exists.' }); return; }
@@ -686,13 +696,18 @@ app.put('/api/trips/:invoice', requireAuth, requireRegularUser, async (req, res)
   const originalInvoice = decodeURIComponent(req.params.invoice);
   const b = req.body; const user = req.session.username;
   if (b.yantrikiInvoiceNumber !== originalInvoice) { res.status(400).json({ error: 'Yantriki Invoice Number cannot be changed.' }); return; }
-  const query = `UPDATE trips SET customer_name=$1, customer_location=$2, po_order=$3, po_date=$4, traveller_name=$5, travel_route=$6, wo_number=$7, wo_date=$8, travel_start_date=$9, travel_end_date=$10, updated_by=$11, updated_date=NOW(), status='pending', wo_start_date=$12, wo_end_date=$13 WHERE yantriki_invoice_number=$14 AND deleted_date IS NULL RETURNING *`;
-  const values = [b.customerName, b.customerLocation, b.poOrder, b.poDate, b.travellerName, b.travelRoute, b.woNumber, b.woDate, b.travelStartDate, b.travelEndDate, user, b.woStartDate, b.woEndDate, originalInvoice];
   try {
+    const tripCheck = await pool.query('SELECT status, submitted_for_approval FROM trips WHERE yantriki_invoice_number = $1 AND deleted_date IS NULL', [originalInvoice]);
+    if (tripCheck.rows.length === 0) { res.status(404).json({ error: 'Trip not found' }); return; }
+    if (tripCheck.rows[0].status === 'approved' || tripCheck.rows[0].submitted_for_approval) {
+      res.status(403).json({ error: 'Cannot modify a trip that is approved or submitted for approval.' });
+      return;
+    }
+    const query = `UPDATE trips SET customer_name=$1, customer_location=$2, po_order=$3, po_date=$4, traveller_name=$5, travel_route=$6, wo_number=$7, wo_date=$8, travel_start_date=$9, travel_end_date=$10, updated_by=$11, updated_date=NOW(), status='pending', wo_start_date=$12, wo_end_date=$13 WHERE yantriki_invoice_number=$14 AND deleted_date IS NULL RETURNING *`;
+    const values = [b.customerName, b.customerLocation, b.poOrder, b.poDate, b.travellerName, b.travelRoute, b.woNumber, b.woDate, b.travelStartDate, b.travelEndDate, user, b.woStartDate, b.woEndDate, originalInvoice];
     const result = await pool.query(query, values);
     if (result.rowCount === 0) { res.status(404).json({ error: 'Trip not found' }); return; }
     const trip = mapTrip(result.rows[0]);
-    await sendTripEmail(trip);
     res.json(trip);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -701,6 +716,12 @@ app.delete('/api/trips/:invoice', requireAuth, requireRegularUser, async (req, r
   const invoice = decodeURIComponent(req.params.invoice);
   const user = req.session.username;
   try {
+    const tripCheck = await pool.query('SELECT status, submitted_for_approval FROM trips WHERE yantriki_invoice_number = $1 AND deleted_date IS NULL', [invoice]);
+    if (tripCheck.rows.length === 0) { res.status(404).json({ error: 'Trip not found' }); return; }
+    if (tripCheck.rows[0].status === 'approved' || tripCheck.rows[0].submitted_for_approval) {
+      res.status(403).json({ error: 'Cannot delete a trip that is approved or submitted for approval.' });
+      return;
+    }
     const result = await pool.query(`UPDATE trips SET deleted_by=$1, deleted_date=NOW() WHERE yantriki_invoice_number=$2 AND deleted_date IS NULL RETURNING *`, [user, invoice]);
     if (result.rowCount === 0) { res.status(404).json({ error: 'Trip not found or already deleted.' }); return; }
     res.status(200).json(mapTrip(result.rows[0]));
@@ -726,6 +747,23 @@ app.post('/api/trips/:invoice/reject', requireApprover, async (req, res) => {
     const result = await pool.query(`UPDATE trips SET status='rejected', approved_by=$1, approved_date=NOW(), rejection_reason=$2 WHERE yantriki_invoice_number=$3 AND deleted_date IS NULL AND status='pending' RETURNING *`, [user, reason || 'No reason provided', invoice]);
     if (result.rowCount === 0) { return res.status(404).json({ error: 'Trip not found or not in pending status' }); }
     res.json({ message: 'Trip rejected', trip: mapTrip(result.rows[0]) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Submit a trip for approval
+app.post('/api/trips/:invoice/submit-approval', requireAuth, requireRegularUser, async (req, res) => {
+  const invoice = decodeURIComponent(req.params.invoice);
+  try {
+    const tripCheck = await pool.query('SELECT * FROM trips WHERE yantriki_invoice_number = $1 AND deleted_date IS NULL', [invoice]);
+    if (tripCheck.rows.length === 0) { return res.status(404).json({ error: 'Trip not found' }); }
+    const currentTrip = tripCheck.rows[0];
+    if (currentTrip.status === 'approved') { return res.status(400).json({ error: 'Trip is already approved' }); }
+    
+    const result = await pool.query(`UPDATE trips SET submitted_for_approval = TRUE WHERE yantriki_invoice_number = $1 RETURNING *`, [invoice]);
+    if (result.rowCount === 0) { return res.status(404).json({ error: 'Trip not found' }); }
+    const trip = mapTrip(result.rows[0]);
+    await sendTripEmail(trip);
+    res.json({ message: 'Trip submitted for approval successfully', trip });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -769,9 +807,11 @@ app.post('/api/trips/:invoice/documents', requireAuth, requireRegularUser, uploa
 
   try {
     // Check if trip is approved - if so, block modifications
-    const tripCheck = await pool.query('SELECT status FROM trips WHERE yantriki_invoice_number = $1 AND deleted_date IS NULL', [invoice]);
+    const tripCheck = await pool.query('SELECT status, submitted_for_approval FROM trips WHERE yantriki_invoice_number = $1 AND deleted_date IS NULL', [invoice]);
     if (tripCheck.rows.length === 0) { return res.status(404).json({ error: 'Trip not found' }); }
-    if (tripCheck.rows[0].status === 'approved') { return res.status(403).json({ error: 'Cannot modify documents for an approved trip' }); }
+    if (tripCheck.rows[0].status === 'approved' || tripCheck.rows[0].submitted_for_approval) {
+      return res.status(403).json({ error: 'Cannot modify documents for an approved or submitted trip' });
+    }
 
     const result = await pool.query(
       `INSERT INTO supporting_docs (trip_invoice_number, doc_date, description, bill_id, category, bill_amount, page_no, file_name, file_type, file_content, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
@@ -789,9 +829,11 @@ app.put('/api/trips/:invoice/documents/:id', requireAuth, requireRegularUser, up
 
   try {
     // Check if trip is approved
-    const tripCheck = await pool.query('SELECT status FROM trips WHERE yantriki_invoice_number = $1 AND deleted_date IS NULL', [invoice]);
+    const tripCheck = await pool.query('SELECT status, submitted_for_approval FROM trips WHERE yantriki_invoice_number = $1 AND deleted_date IS NULL', [invoice]);
     if (tripCheck.rows.length === 0) { return res.status(404).json({ error: 'Trip not found' }); }
-    if (tripCheck.rows[0].status === 'approved') { return res.status(403).json({ error: 'Cannot modify documents for an approved trip' }); }
+    if (tripCheck.rows[0].status === 'approved' || tripCheck.rows[0].submitted_for_approval) {
+      return res.status(403).json({ error: 'Cannot modify documents for an approved or submitted trip' });
+    }
 
     let query, values;
     if (req.file) {
@@ -813,9 +855,11 @@ app.delete('/api/trips/:invoice/documents/:id', requireAuth, requireRegularUser,
   const docId = parseInt(req.params.id);
 
   try {
-    const tripCheck = await pool.query('SELECT status FROM trips WHERE yantriki_invoice_number = $1 AND deleted_date IS NULL', [invoice]);
+    const tripCheck = await pool.query('SELECT status, submitted_for_approval FROM trips WHERE yantriki_invoice_number = $1 AND deleted_date IS NULL', [invoice]);
     if (tripCheck.rows.length === 0) { return res.status(404).json({ error: 'Trip not found' }); }
-    if (tripCheck.rows[0].status === 'approved') { return res.status(403).json({ error: 'Cannot modify documents for an approved trip' }); }
+    if (tripCheck.rows[0].status === 'approved' || tripCheck.rows[0].submitted_for_approval) {
+      return res.status(403).json({ error: 'Cannot modify documents for an approved or submitted trip' });
+    }
 
     const result = await pool.query('DELETE FROM supporting_docs WHERE id = $1 AND trip_invoice_number = $2 RETURNING *', [docId, invoice]);
     if (result.rowCount === 0) { return res.status(404).json({ error: 'Document not found' }); }

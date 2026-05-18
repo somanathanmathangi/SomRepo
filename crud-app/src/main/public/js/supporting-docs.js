@@ -66,19 +66,26 @@ async function loadTrip() {
         statusEl.textContent = currentTrip.status ? currentTrip.status.charAt(0).toUpperCase() + currentTrip.status.slice(1) : 'Pending';
         statusEl.className = `status-badge status-${currentTrip.status || 'pending'}`;
 
-        isReadOnly = currentTrip.status === 'approved';
+        isReadOnly = currentTrip.status === 'approved' || currentTrip.submittedForApproval;
         const isApproverOrAdmin = currentUserRole && (currentUserRole.toLowerCase() === 'approver' || currentUserRole.toLowerCase() === 'admin');
+        const submitBtn = document.getElementById('sdSubmitApprovalBtn');
         if (isReadOnly || isApproverOrAdmin) {
             if (isReadOnly) {
-                document.getElementById('sdReadonlyBanner').classList.remove('hidden');
+                const banner = document.getElementById('sdReadonlyBanner');
+                banner.classList.remove('hidden');
+                banner.textContent = currentTrip.status === 'approved'
+                    ? '🔒 This trip has been approved. Documents are in read-only mode.'
+                    : '🔒 This trip has been submitted for approval. Documents are in read-only mode.';
             } else {
                 document.getElementById('sdReadonlyBanner').classList.add('hidden');
             }
             document.getElementById('sdForm').classList.add('hidden');
             document.getElementById('sdAddNewBtn').style.display = 'none';
+            if (submitBtn) submitBtn.style.display = 'none';
         } else {
             document.getElementById('sdReadonlyBanner').classList.add('hidden');
             document.getElementById('sdAddNewBtn').style.display = 'inline-block';
+            if (submitBtn) submitBtn.style.display = 'inline-block';
         }
 
         await loadDocs();
@@ -316,6 +323,28 @@ async function rejectTrip() {
     } catch (error) { alert('Error rejecting trip.'); }
 }
 
+async function submitTripForApproval() {
+    const invoice = getInvoiceFromUrl();
+    if (!invoice) return;
+    if (!confirm('Are you sure you want to submit this trip for approval? This will lock the record and notify the approver.')) {
+        return;
+    }
+    try {
+        const response = await apiFetch(`/api/trips/${encodeURIComponent(invoice)}/submit-approval`, {
+            method: 'POST'
+        });
+        const result = await response.json().catch(() => ({}));
+        if (response.ok) {
+            alert('Trip successfully submitted for approval.');
+            window.location.reload();
+        } else {
+            alert(result.error || 'Failed to submit trip for approval.');
+        }
+    } catch (error) {
+        alert('Error submitting trip for approval.');
+    }
+}
+
 
 document.addEventListener('DOMContentLoaded', async () => {
     if (!(await initSession())) return;
@@ -328,6 +357,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('sdSaveBtn').addEventListener('click', saveDoc);
     document.getElementById('sdCancelBtn').addEventListener('click', hideForm);
     document.getElementById('sdAddNewBtn').addEventListener('click', () => showForm(null));
+    
+    const submitBtn = document.getElementById('sdSubmitApprovalBtn');
+    if (submitBtn) {
+        submitBtn.addEventListener('click', submitTripForApproval);
+    }
 
     await loadTrip();
 });
