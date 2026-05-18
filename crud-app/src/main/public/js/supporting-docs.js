@@ -67,8 +67,13 @@ async function loadTrip() {
         statusEl.className = `status-badge status-${currentTrip.status || 'pending'}`;
 
         isReadOnly = currentTrip.status === 'approved';
-        if (isReadOnly) {
-            document.getElementById('sdReadonlyBanner').classList.remove('hidden');
+        const isApproverOrAdmin = currentUserRole && (currentUserRole.toLowerCase() === 'approver' || currentUserRole.toLowerCase() === 'admin');
+        if (isReadOnly || isApproverOrAdmin) {
+            if (isReadOnly) {
+                document.getElementById('sdReadonlyBanner').classList.remove('hidden');
+            } else {
+                document.getElementById('sdReadonlyBanner').classList.add('hidden');
+            }
             document.getElementById('sdForm').classList.add('hidden');
             document.getElementById('sdAddNewBtn').style.display = 'none';
         } else {
@@ -129,9 +134,10 @@ function renderDocs() {
             : '—';
 
         let actions = '';
+        const isApproverOrAdmin = currentUserRole && (currentUserRole.toLowerCase() === 'approver' || currentUserRole.toLowerCase() === 'admin');
         if (isReadOnly) {
             actions = '<span style="color:#999;font-size:12px;">—</span>';
-        } else if (currentUserRole && currentUserRole.toLowerCase() === 'approver') {
+        } else if (isApproverOrAdmin) {
             actions = `<div class="doc-actions">
            <button type="button" class="btn btn-approve btn-sm" onclick="approveTrip()">Approve</button>
            <button type="button" class="btn btn-reject btn-sm" onclick="rejectTrip()">Reject</button>

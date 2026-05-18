@@ -39,11 +39,12 @@ app.use(
     secret: process.env.SESSION_SECRET || 'trips-manager-dev-session-secret',
     resave: false,
     saveUninitialized: false,
+    rolling: true,
     cookie: {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000
+      maxAge: 30 * 60 * 1000 // 30 minutes in milliseconds
     }
   })
 );
@@ -126,6 +127,19 @@ function requireApprover(req, res, next) {
   const role = (req.session.userRole || '').toLowerCase();
   if (role !== 'approver' && role !== 'admin') {
     res.status(403).json({ error: 'Approver access required' });
+    return;
+  }
+  next();
+}
+
+function requireRegularUser(req, res, next) {
+  if (!req.session || !req.session.username) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  const role = (req.session.userRole || '').toLowerCase();
+  if (role === 'approver' || role === 'admin') {
+    res.status(403).json({ error: 'Forbidden: Approvers/Admins cannot create or modify records.' });
     return;
   }
   next();
@@ -352,6 +366,26 @@ async function sendTripEmail(trip) {
 
 // ==================== AUTH ENDPOINTS ====================
 
+const activeSessions = new Map(); // username.toLowerCase() -> sessionID
+
+function checkActiveSession(username, req) {
+  return new Promise((resolve) => {
+    const lowercaseUser = username.toLowerCase();
+    const sid = activeSessions.get(lowercaseUser);
+    if (!sid) {
+      return resolve(false);
+    }
+    req.sessionStore.get(sid, (err, sess) => {
+      if (err || !sess || !sess.username) {
+        activeSessions.delete(lowercaseUser);
+        resolve(false);
+      } else {
+        resolve(true);
+      }
+    });
+  });
+}
+
 app.post('/api/auth/login', async (req, res) => {
   const username = (req.body.username || '').trim();
   const password = req.body.password || '';
@@ -423,8 +457,18 @@ app.post('/api/auth/login', async (req, res) => {
       return;
     }
 
+    const activeSessionId = activeSessions.get(matchedUser.username.toLowerCase());
+    if (activeSessionId && activeSessionId !== req.sessionID) {
+      const isRunning = await checkActiveSession(matchedUser.username, req);
+      if (isRunning) {
+        res.status(400).json({ error: 'Current session is running' });
+        return;
+      }
+    }
+
     req.session.username = matchedUser.username; // Use proper cased username from the DB
     req.session.userRole = matchedUser.role;
+    activeSessions.set(matchedUser.username.toLowerCase(), req.sessionID);
     res.json({ username: matchedUser.username, role: matchedUser.role });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -432,6 +476,9 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 app.post('/api/auth/logout', (req, res) => {
+  if (req.session && req.session.username) {
+    activeSessions.delete(req.session.username.toLowerCase());
+  }
   req.session.destroy((err) => { if (err) { res.status(500).json({ error: err.message }); return; } res.json({ ok: true }); });
 });
 
@@ -586,7 +633,7 @@ app.get('/api/trips/:invoice', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/trips', requireAuth, async (req, res) => {
+app.post('/api/trips', requireAuth, requireRegularUser, async (req, res) => {
   const b = req.body;
   const user = req.session.username;
   const insertQuery = `INSERT INTO trips (yantriki_invoice_number, customer_name, customer_location, po_order, po_date, traveller_name, travel_route, wo_number, wo_date, travel_start_date, travel_end_date, created_by, created_date, status, wo_start_date, wo_end_date) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), 'pending', $13, $14) RETURNING *`;
@@ -602,7 +649,7 @@ app.post('/api/trips', requireAuth, async (req, res) => {
   }
 });
 
-app.put('/api/trips/:invoice', requireAuth, async (req, res) => {
+app.put('/api/trips/:invoice', requireAuth, requireRegularUser, async (req, res) => {
   const originalInvoice = decodeURIComponent(req.params.invoice);
   const b = req.body; const user = req.session.username;
   if (b.yantrikiInvoiceNumber !== originalInvoice) { res.status(400).json({ error: 'Yantriki Invoice Number cannot be changed.' }); return; }
@@ -617,7 +664,7 @@ app.put('/api/trips/:invoice', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/trips/:invoice', requireAuth, async (req, res) => {
+app.delete('/api/trips/:invoice', requireAuth, requireRegularUser, async (req, res) => {
   const invoice = decodeURIComponent(req.params.invoice);
   const user = req.session.username;
   try {
@@ -679,7 +726,7 @@ app.get('/api/trips/:invoice/documents/maxpage', requireAuth, async (req, res) =
 });
 
 // Create a new supporting doc (with optional file)
-app.post('/api/trips/:invoice/documents', requireAuth, upload.single('file'), async (req, res) => {
+app.post('/api/trips/:invoice/documents', requireAuth, requireRegularUser, upload.single('file'), async (req, res) => {
   const invoice = decodeURIComponent(req.params.invoice);
   const user = req.session.username;
   const b = req.body;
@@ -702,7 +749,7 @@ app.post('/api/trips/:invoice/documents', requireAuth, upload.single('file'), as
 });
 
 // Update a supporting doc
-app.put('/api/trips/:invoice/documents/:id', requireAuth, upload.single('file'), async (req, res) => {
+app.put('/api/trips/:invoice/documents/:id', requireAuth, requireRegularUser, upload.single('file'), async (req, res) => {
   const invoice = decodeURIComponent(req.params.invoice);
   const docId = parseInt(req.params.id);
   const b = req.body;
@@ -728,7 +775,7 @@ app.put('/api/trips/:invoice/documents/:id', requireAuth, upload.single('file'),
 });
 
 // Delete a supporting doc
-app.delete('/api/trips/:invoice/documents/:id', requireAuth, async (req, res) => {
+app.delete('/api/trips/:invoice/documents/:id', requireAuth, requireRegularUser, async (req, res) => {
   const invoice = decodeURIComponent(req.params.invoice);
   const docId = parseInt(req.params.id);
 
