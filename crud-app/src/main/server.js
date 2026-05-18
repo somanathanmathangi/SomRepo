@@ -166,6 +166,16 @@ async function ensureSupportingDocsTable() {
   console.log('PostgreSQL: supporting_docs table ensured.');
 }
 
+async function ensureActiveSessionsTable() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS active_sessions (
+      username TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL
+    )
+  `);
+  console.log('PostgreSQL: active_sessions table ensured.');
+}
+
 async function ensureTripAuditColumns() {
   const { rows } = await pool.query(`
     SELECT EXISTS (
@@ -366,24 +376,29 @@ async function sendTripEmail(trip) {
 
 // ==================== AUTH ENDPOINTS ====================
 
-const activeSessions = new Map(); // username.toLowerCase() -> sessionID
-
-function checkActiveSession(username, req) {
-  return new Promise((resolve) => {
-    const lowercaseUser = username.toLowerCase();
-    const sid = activeSessions.get(lowercaseUser);
-    if (!sid) {
-      return resolve(false);
+async function checkActiveSession(username, req) {
+  const lowercaseUser = username.toLowerCase();
+  try {
+    const result = await pool.query('SELECT session_id FROM active_sessions WHERE LOWER(username) = LOWER($1)', [lowercaseUser]);
+    if (result.rows.length === 0) {
+      return false;
     }
-    req.sessionStore.get(sid, (err, sess) => {
-      if (err || !sess || !sess.username) {
-        activeSessions.delete(lowercaseUser);
-        resolve(false);
-      } else {
-        resolve(true);
-      }
+    const sid = result.rows[0].session_id;
+    return new Promise((resolve) => {
+      req.sessionStore.get(sid, (err, sess) => {
+        if (err || !sess || !sess.username) {
+          // Session is dead or expired, delete it from the active_sessions table
+          pool.query('DELETE FROM active_sessions WHERE LOWER(username) = LOWER($1)', [lowercaseUser])
+            .finally(() => resolve(false));
+        } else {
+          resolve(true);
+        }
+      });
     });
-  });
+  } catch (err) {
+    console.error('Error checking active session in DB:', err);
+    return false;
+  }
 }
 
 app.post('/api/auth/login', async (req, res) => {
@@ -457,7 +472,8 @@ app.post('/api/auth/login', async (req, res) => {
       return;
     }
 
-    const activeSessionId = activeSessions.get(matchedUser.username.toLowerCase());
+    const sessionCheck = await pool.query('SELECT session_id FROM active_sessions WHERE LOWER(username) = LOWER($1)', [matchedUser.username]);
+    const activeSessionId = sessionCheck.rows[0]?.session_id;
     if (activeSessionId && activeSessionId !== req.sessionID) {
       const isRunning = await checkActiveSession(matchedUser.username, req);
       if (isRunning) {
@@ -468,16 +484,33 @@ app.post('/api/auth/login', async (req, res) => {
 
     req.session.username = matchedUser.username; // Use proper cased username from the DB
     req.session.userRole = matchedUser.role;
-    activeSessions.set(matchedUser.username.toLowerCase(), req.sessionID);
-    res.json({ username: matchedUser.username, role: matchedUser.role });
+    req.session.save(async (err) => {
+      if (err) {
+        res.status(500).json({ error: 'Failed to save session' });
+        return;
+      }
+      try {
+        await pool.query(
+          'INSERT INTO active_sessions (username, session_id) VALUES (LOWER($1), $2) ON CONFLICT (username) DO UPDATE SET session_id = EXCLUDED.session_id',
+          [matchedUser.username, req.sessionID]
+        );
+        res.json({ username: matchedUser.username, role: matchedUser.role });
+      } catch (dbErr) {
+        res.status(500).json({ error: dbErr.message });
+      }
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.post('/api/auth/logout', (req, res) => {
+app.post('/api/auth/logout', async (req, res) => {
   if (req.session && req.session.username) {
-    activeSessions.delete(req.session.username.toLowerCase());
+    try {
+      await pool.query('DELETE FROM active_sessions WHERE LOWER(username) = LOWER($1)', [req.session.username]);
+    } catch (err) {
+      console.error('Error deleting active session during logout:', err);
+    }
   }
   req.session.destroy((err) => { if (err) { res.status(500).json({ error: err.message }); return; } res.json({ ok: true }); });
 });
@@ -816,6 +849,7 @@ async function start() {
   await ensureTripAuditColumns();
   await ensureAdminUsers();
   await ensureSupportingDocsTable();
+  await ensureActiveSessionsTable();
   app.listen(port, () => {
     console.log(`Node.js server running on port ${port}`);
   });
