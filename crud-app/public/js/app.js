@@ -257,7 +257,7 @@ async function searchTrips() {
     );
     const results = await response.json();
     renderTrips(results, true);
-    
+
     // Clear pagination container during search since search displays all matched records flatly
     const paginationContainer = document.getElementById('pagination');
     if (paginationContainer) paginationContainer.innerHTML = '';
@@ -438,7 +438,7 @@ function renderTrips(data, isSearch = false) {
     const statusText = formatStatus(trip.status);
     const statusBadge = `<span class="status-badge ${statusClass}">${statusText}</span>`;
 
-    const docLink = `<a href="supporting-docs.html?invoice=${encodeURIComponent(inv)}" class="file-download-link" title="View supporting documents">
+    const docLink = `<a href="sd.html?invoice=${encodeURIComponent(inv)}" class="file-download-link" title="View supporting documents">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;">
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
         <polyline points="14 2 14 8 20 8"/>
@@ -481,8 +481,8 @@ function renderTrips(data, isSearch = false) {
                 <button type="button" class="btn btn-approve btn-sm" data-action="approve" ${trip.status && trip.status !== 'pending' ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : (trip.docCount === 0 ? 'disabled title="Requires supporting documents" style="opacity: 0.5; cursor: not-allowed;"' : '')}>Approve</button>
                 <button type="button" class="btn btn-reject btn-sm" data-action="reject" ${trip.status && trip.status !== 'pending' ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : (trip.docCount === 0 ? 'disabled title="Requires supporting documents" style="opacity: 0.5; cursor: not-allowed;"' : '')}>Reject</button>
                 ` : `
-                <button type="button" class="btn btn-edit" ${trip.status && trip.status.toLowerCase() === 'approved' ? 'disabled style="opacity: 0.5; cursor: not-allowed;" title="Approved records cannot be edited"' : ''}>Edit</button>
-                <button type="button" class="btn btn-delete" ${trip.status && trip.status.toLowerCase() === 'approved' ? 'disabled style="opacity: 0.5; cursor: not-allowed;" title="Approved records cannot be deleted"' : ''}>Delete</button>
+                <button type="button" class="btn btn-edit" ${(trip.status && trip.status.toLowerCase() === 'approved') || trip.submittedForApproval ? `disabled style="opacity: 0.5; cursor: not-allowed;" title="${trip.status && trip.status.toLowerCase() === 'approved' ? 'Approved records cannot be edited' : 'Submitted records cannot be edited'}"` : ''}>Edit</button>
+                <button type="button" class="btn btn-delete" ${(trip.status && trip.status.toLowerCase() === 'approved') || trip.submittedForApproval ? `disabled style="opacity: 0.5; cursor: not-allowed;" title="${trip.status && trip.status.toLowerCase() === 'approved' ? 'Approved records cannot be deleted' : 'Submitted records cannot be deleted'}"` : ''}>Delete</button>
                 `}
             </td>
         `;
@@ -491,8 +491,8 @@ function renderTrips(data, isSearch = false) {
       tr.querySelector('[data-action="approve"]').addEventListener('click', () => approveTrip(inv));
       tr.querySelector('[data-action="reject"]').addEventListener('click', () => rejectTrip(inv));
     } else {
-      if (trip.status && trip.status.toLowerCase() === 'approved') {
-        // Do not bind click handlers for approved records
+      if ((trip.status && trip.status.toLowerCase() === 'approved') || trip.submittedForApproval) {
+        // Do not bind click handlers for approved/submitted records
       } else {
         tr.querySelector('.btn-edit').addEventListener('click', () => editTrip(trip));
         tr.querySelector('.btn-delete').addEventListener('click', () => deleteTrip(inv));

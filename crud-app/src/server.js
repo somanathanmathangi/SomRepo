@@ -39,11 +39,12 @@ app.use(
     secret: process.env.SESSION_SECRET || 'trips-manager-dev-session-secret',
     resave: false,
     saveUninitialized: false,
+    rolling: true,
     cookie: {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000
+      maxAge: 30 * 60 * 1000 // 30 minutes in milliseconds
     }
   })
 );
@@ -88,7 +89,8 @@ function mapTrip(row) {
     rejectionReason: row.rejection_reason,
     woStartDate: row.wo_start_date,
     woEndDate: row.wo_end_date,
-    docCount: parseInt(row.doc_count) || 0
+    docCount: parseInt(row.doc_count) || 0,
+    submittedForApproval: Boolean(row.submitted_for_approval)
   };
 }
 
@@ -131,6 +133,19 @@ function requireApprover(req, res, next) {
   next();
 }
 
+function requireRegularUser(req, res, next) {
+  if (!req.session || !req.session.username) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  const role = (req.session.userRole || '').toLowerCase();
+  if (role === 'approver' || role === 'admin') {
+    res.status(403).json({ error: 'Forbidden: Approvers/Admins cannot create or modify records.' });
+    return;
+  }
+  next();
+}
+
 async function ensureSupportingDocsTable() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS supporting_docs (
@@ -150,6 +165,16 @@ async function ensureSupportingDocsTable() {
     )
   `);
   console.log('PostgreSQL: supporting_docs table ensured.');
+}
+
+async function ensureActiveSessionsTable() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS active_sessions (
+      username TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL
+    )
+  `);
+  console.log('PostgreSQL: active_sessions table ensured.');
 }
 
 async function ensureTripAuditColumns() {
@@ -184,6 +209,7 @@ async function ensureTripAuditColumns() {
   await addIfMissing('rejection_reason', 'TEXT');
   await addIfMissing('wo_start_date', 'TEXT');
   await addIfMissing('wo_end_date', 'TEXT');
+  await addIfMissing('submitted_for_approval', 'BOOLEAN', 'FALSE');
 }
 
 async function ensureAdminUsers() {
@@ -244,7 +270,8 @@ async function initDb() {
       approved_date TIMESTAMPTZ,
       rejection_reason TEXT,
       wo_start_date TEXT,
-      wo_end_date TEXT
+      wo_end_date TEXT,
+      submitted_for_approval BOOLEAN DEFAULT FALSE
     )
   `;
   try {
@@ -304,11 +331,19 @@ function getEmailTransporter() {
 async function sendTripEmail(trip) {
   const transporter = getEmailTransporter();
   const emailTo = process.env.EMAIL_TO || 'somanathan_c@yahoo.com';
-  const subject = `Trip ${trip.yantrikiInvoiceNumber} - ${trip.status === 'pending' ? 'Created' : 'Updated'} & Pending Approval`;
+
+  let actionText = 'Submitted for Approval';
+  if (trip.status === 'approved') {
+    actionText = 'Approved';
+  } else if (trip.status === 'rejected') {
+    actionText = 'Rejected';
+  }
+
+  const subject = `Trip ${trip.yantrikiInvoiceNumber} - ${actionText}`;
 
   const html = `
-    <h2>Trip Record ${trip.status === 'pending' ? 'Created' : 'Updated'}</h2>
-    <p>A trip record has been ${trip.status === 'pending' ? 'created' : 'updated'} and is pending approval.</p>
+    <h2>Trip Record ${actionText}</h2>
+    <p>A trip record has been ${actionText.toLowerCase()} and requires review.</p>
     <h3>Trip Details:</h3>
     <table style="border-collapse: collapse; width: 100%;">
       <tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Yantriki Invoice Number</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${trip.yantrikiInvoiceNumber}</td></tr>
@@ -352,6 +387,31 @@ async function sendTripEmail(trip) {
 
 // ==================== AUTH ENDPOINTS ====================
 
+async function checkActiveSession(username, req) {
+  const lowercaseUser = username.toLowerCase();
+  try {
+    const result = await pool.query('SELECT session_id FROM active_sessions WHERE LOWER(username) = LOWER($1)', [lowercaseUser]);
+    if (result.rows.length === 0) {
+      return false;
+    }
+    const sid = result.rows[0].session_id;
+    return new Promise((resolve) => {
+      req.sessionStore.get(sid, (err, sess) => {
+        if (err || !sess || !sess.username) {
+          // Session is dead or expired, delete it from the active_sessions table
+          pool.query('DELETE FROM active_sessions WHERE LOWER(username) = LOWER($1)', [lowercaseUser])
+            .finally(() => resolve(false));
+        } else {
+          resolve(true);
+        }
+      });
+    });
+  } catch (err) {
+    console.error('Error checking active session in DB:', err);
+    return false;
+  }
+}
+
 app.post('/api/auth/login', async (req, res) => {
   const username = (req.body.username || '').trim();
   const password = req.body.password || '';
@@ -373,7 +433,7 @@ app.post('/api/auth/login', async (req, res) => {
     rows.sort((a, b) => {
       const roleA = (a.role || '').toLowerCase();
       const roleB = (b.role || '').toLowerCase();
-      
+
       if (portal === 'approver') {
         const isApproverA = (roleA === 'approver' || roleA === 'admin');
         const isApproverB = (roleB === 'approver' || roleB === 'admin');
@@ -387,13 +447,13 @@ app.post('/api/auth/login', async (req, res) => {
       }
       return 0;
     });
-    
+
     let matchedUser = null;
     for (const dbUser of rows) {
       const storedPass = dbUser.password_hash || '';
       // Check if the stored password is a valid bcrypt hash
       const isHashed = (storedPass.startsWith('$2a$') || storedPass.startsWith('$2b$') || storedPass.startsWith('$2y$')) && storedPass.length === 60;
-      
+
       let ok = false;
       if (isHashed) {
         ok = await bcrypt.compare(password, storedPass);
@@ -411,7 +471,7 @@ app.post('/api/auth/login', async (req, res) => {
           }
         }
       }
-      
+
       if (ok) {
         matchedUser = dbUser;
         break; // Successfully authenticated this user record!
@@ -423,15 +483,46 @@ app.post('/api/auth/login', async (req, res) => {
       return;
     }
 
+    const sessionCheck = await pool.query('SELECT session_id FROM active_sessions WHERE LOWER(username) = LOWER($1)', [matchedUser.username]);
+    const activeSessionId = sessionCheck.rows[0]?.session_id;
+    if (activeSessionId && activeSessionId !== req.sessionID) {
+      const isRunning = await checkActiveSession(matchedUser.username, req);
+      if (isRunning) {
+        res.status(400).json({ error: 'Current session is running' });
+        return;
+      }
+    }
+
     req.session.username = matchedUser.username; // Use proper cased username from the DB
     req.session.userRole = matchedUser.role;
-    res.json({ username: matchedUser.username, role: matchedUser.role });
+    req.session.save(async (err) => {
+      if (err) {
+        res.status(500).json({ error: 'Failed to save session' });
+        return;
+      }
+      try {
+        await pool.query(
+          'INSERT INTO active_sessions (username, session_id) VALUES (LOWER($1), $2) ON CONFLICT (username) DO UPDATE SET session_id = EXCLUDED.session_id',
+          [matchedUser.username, req.sessionID]
+        );
+        res.json({ username: matchedUser.username, role: matchedUser.role });
+      } catch (dbErr) {
+        res.status(500).json({ error: dbErr.message });
+      }
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.post('/api/auth/logout', (req, res) => {
+app.post('/api/auth/logout', async (req, res) => {
+  if (req.session && req.session.username) {
+    try {
+      await pool.query('DELETE FROM active_sessions WHERE LOWER(username) = LOWER($1)', [req.session.username]);
+    } catch (err) {
+      console.error('Error deleting active session during logout:', err);
+    }
+  }
   req.session.destroy((err) => { if (err) { res.status(500).json({ error: err.message }); return; } res.json({ ok: true }); });
 });
 
@@ -497,7 +588,7 @@ app.get('/api/trips', requireAuth, async (req, res) => {
       `;
       result = await pool.query(query, [limit, offset]);
     }
-    
+
     res.json({
       trips: result.rows.map(mapTrip),
       pagination: {
@@ -574,19 +665,19 @@ app.get('/api/trips/:invoice', requireAuth, async (req, res) => {
     const invoice = decodeURIComponent(req.params.invoice);
     const result = await pool.query('SELECT * FROM trips WHERE yantriki_invoice_number = $1 AND deleted_date IS NULL', [invoice]);
     if (result.rows.length === 0) { res.status(404).json({ error: 'Trip not found' }); return; }
-    
+
     // Auth check: guser role can only view their own trip records
     const trip = result.rows[0];
     if (req.session.userRole && req.session.userRole.toLowerCase() === 'guser' && trip.created_by && trip.created_by.toLowerCase() !== req.session.username.toLowerCase()) {
       res.status(403).json({ error: 'Forbidden' });
       return;
     }
-    
+
     res.json(mapTrip(trip));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/trips', requireAuth, async (req, res) => {
+app.post('/api/trips', requireAuth, requireRegularUser, async (req, res) => {
   const b = req.body;
   const user = req.session.username;
   const insertQuery = `INSERT INTO trips (yantriki_invoice_number, customer_name, customer_location, po_order, po_date, traveller_name, travel_route, wo_number, wo_date, travel_start_date, travel_end_date, created_by, created_date, status, wo_start_date, wo_end_date) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), 'pending', $13, $14) RETURNING *`;
@@ -594,7 +685,6 @@ app.post('/api/trips', requireAuth, async (req, res) => {
   try {
     const result = await pool.query(insertQuery, values);
     const trip = mapTrip(result.rows[0]);
-    await sendTripEmail(trip);
     res.json(trip);
   } catch (err) {
     if (err.code === '23505') { res.status(409).json({ error: 'A record with this Yantriki Invoice Number already exists.' }); return; }
@@ -602,25 +692,36 @@ app.post('/api/trips', requireAuth, async (req, res) => {
   }
 });
 
-app.put('/api/trips/:invoice', requireAuth, async (req, res) => {
+app.put('/api/trips/:invoice', requireAuth, requireRegularUser, async (req, res) => {
   const originalInvoice = decodeURIComponent(req.params.invoice);
   const b = req.body; const user = req.session.username;
   if (b.yantrikiInvoiceNumber !== originalInvoice) { res.status(400).json({ error: 'Yantriki Invoice Number cannot be changed.' }); return; }
-  const query = `UPDATE trips SET customer_name=$1, customer_location=$2, po_order=$3, po_date=$4, traveller_name=$5, travel_route=$6, wo_number=$7, wo_date=$8, travel_start_date=$9, travel_end_date=$10, updated_by=$11, updated_date=NOW(), status='pending', wo_start_date=$12, wo_end_date=$13 WHERE yantriki_invoice_number=$14 AND deleted_date IS NULL RETURNING *`;
-  const values = [b.customerName, b.customerLocation, b.poOrder, b.poDate, b.travellerName, b.travelRoute, b.woNumber, b.woDate, b.travelStartDate, b.travelEndDate, user, b.woStartDate, b.woEndDate, originalInvoice];
   try {
+    const tripCheck = await pool.query('SELECT status, submitted_for_approval FROM trips WHERE yantriki_invoice_number = $1 AND deleted_date IS NULL', [originalInvoice]);
+    if (tripCheck.rows.length === 0) { res.status(404).json({ error: 'Trip not found' }); return; }
+    if (tripCheck.rows[0].status === 'approved' || tripCheck.rows[0].submitted_for_approval) {
+      res.status(403).json({ error: 'Cannot modify a trip that is approved or submitted for approval.' });
+      return;
+    }
+    const query = `UPDATE trips SET customer_name=$1, customer_location=$2, po_order=$3, po_date=$4, traveller_name=$5, travel_route=$6, wo_number=$7, wo_date=$8, travel_start_date=$9, travel_end_date=$10, updated_by=$11, updated_date=NOW(), status='pending', wo_start_date=$12, wo_end_date=$13 WHERE yantriki_invoice_number=$14 AND deleted_date IS NULL RETURNING *`;
+    const values = [b.customerName, b.customerLocation, b.poOrder, b.poDate, b.travellerName, b.travelRoute, b.woNumber, b.woDate, b.travelStartDate, b.travelEndDate, user, b.woStartDate, b.woEndDate, originalInvoice];
     const result = await pool.query(query, values);
     if (result.rowCount === 0) { res.status(404).json({ error: 'Trip not found' }); return; }
     const trip = mapTrip(result.rows[0]);
-    await sendTripEmail(trip);
     res.json(trip);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/trips/:invoice', requireAuth, async (req, res) => {
+app.delete('/api/trips/:invoice', requireAuth, requireRegularUser, async (req, res) => {
   const invoice = decodeURIComponent(req.params.invoice);
   const user = req.session.username;
   try {
+    const tripCheck = await pool.query('SELECT status, submitted_for_approval FROM trips WHERE yantriki_invoice_number = $1 AND deleted_date IS NULL', [invoice]);
+    if (tripCheck.rows.length === 0) { res.status(404).json({ error: 'Trip not found' }); return; }
+    if (tripCheck.rows[0].status === 'approved' || tripCheck.rows[0].submitted_for_approval) {
+      res.status(403).json({ error: 'Cannot delete a trip that is approved or submitted for approval.' });
+      return;
+    }
     const result = await pool.query(`UPDATE trips SET deleted_by=$1, deleted_date=NOW() WHERE yantriki_invoice_number=$2 AND deleted_date IS NULL RETURNING *`, [user, invoice]);
     if (result.rowCount === 0) { res.status(404).json({ error: 'Trip not found or already deleted.' }); return; }
     res.status(200).json(mapTrip(result.rows[0]));
@@ -646,6 +747,23 @@ app.post('/api/trips/:invoice/reject', requireApprover, async (req, res) => {
     const result = await pool.query(`UPDATE trips SET status='rejected', approved_by=$1, approved_date=NOW(), rejection_reason=$2 WHERE yantriki_invoice_number=$3 AND deleted_date IS NULL AND status='pending' RETURNING *`, [user, reason || 'No reason provided', invoice]);
     if (result.rowCount === 0) { return res.status(404).json({ error: 'Trip not found or not in pending status' }); }
     res.json({ message: 'Trip rejected', trip: mapTrip(result.rows[0]) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Submit a trip for approval
+app.post('/api/trips/:invoice/submit-approval', requireAuth, requireRegularUser, async (req, res) => {
+  const invoice = decodeURIComponent(req.params.invoice);
+  try {
+    const tripCheck = await pool.query('SELECT * FROM trips WHERE yantriki_invoice_number = $1 AND deleted_date IS NULL', [invoice]);
+    if (tripCheck.rows.length === 0) { return res.status(404).json({ error: 'Trip not found' }); }
+    const currentTrip = tripCheck.rows[0];
+    if (currentTrip.status === 'approved') { return res.status(400).json({ error: 'Trip is already approved' }); }
+
+    const result = await pool.query(`UPDATE trips SET submitted_for_approval = TRUE WHERE yantriki_invoice_number = $1 RETURNING *`, [invoice]);
+    if (result.rowCount === 0) { return res.status(404).json({ error: 'Trip not found' }); }
+    const trip = mapTrip(result.rows[0]);
+    await sendTripEmail(trip);
+    res.json({ message: 'Trip submitted for approval successfully', trip });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -679,7 +797,7 @@ app.get('/api/trips/:invoice/documents/maxpage', requireAuth, async (req, res) =
 });
 
 // Create a new supporting doc (with optional file)
-app.post('/api/trips/:invoice/documents', requireAuth, upload.single('file'), async (req, res) => {
+app.post('/api/trips/:invoice/documents', requireAuth, requireRegularUser, upload.single('file'), async (req, res) => {
   const invoice = decodeURIComponent(req.params.invoice);
   const user = req.session.username;
   const b = req.body;
@@ -689,9 +807,11 @@ app.post('/api/trips/:invoice/documents', requireAuth, upload.single('file'), as
 
   try {
     // Check if trip is approved - if so, block modifications
-    const tripCheck = await pool.query('SELECT status FROM trips WHERE yantriki_invoice_number = $1 AND deleted_date IS NULL', [invoice]);
+    const tripCheck = await pool.query('SELECT status, submitted_for_approval FROM trips WHERE yantriki_invoice_number = $1 AND deleted_date IS NULL', [invoice]);
     if (tripCheck.rows.length === 0) { return res.status(404).json({ error: 'Trip not found' }); }
-    if (tripCheck.rows[0].status === 'approved') { return res.status(403).json({ error: 'Cannot modify documents for an approved trip' }); }
+    if (tripCheck.rows[0].status === 'approved' || tripCheck.rows[0].submitted_for_approval) {
+      return res.status(403).json({ error: 'Cannot modify documents for an approved or submitted trip' });
+    }
 
     const result = await pool.query(
       `INSERT INTO supporting_docs (trip_invoice_number, doc_date, description, bill_id, category, bill_amount, page_no, file_name, file_type, file_content, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
@@ -702,16 +822,18 @@ app.post('/api/trips/:invoice/documents', requireAuth, upload.single('file'), as
 });
 
 // Update a supporting doc
-app.put('/api/trips/:invoice/documents/:id', requireAuth, upload.single('file'), async (req, res) => {
+app.put('/api/trips/:invoice/documents/:id', requireAuth, requireRegularUser, upload.single('file'), async (req, res) => {
   const invoice = decodeURIComponent(req.params.invoice);
   const docId = parseInt(req.params.id);
   const b = req.body;
 
   try {
     // Check if trip is approved
-    const tripCheck = await pool.query('SELECT status FROM trips WHERE yantriki_invoice_number = $1 AND deleted_date IS NULL', [invoice]);
+    const tripCheck = await pool.query('SELECT status, submitted_for_approval FROM trips WHERE yantriki_invoice_number = $1 AND deleted_date IS NULL', [invoice]);
     if (tripCheck.rows.length === 0) { return res.status(404).json({ error: 'Trip not found' }); }
-    if (tripCheck.rows[0].status === 'approved') { return res.status(403).json({ error: 'Cannot modify documents for an approved trip' }); }
+    if (tripCheck.rows[0].status === 'approved' || tripCheck.rows[0].submitted_for_approval) {
+      return res.status(403).json({ error: 'Cannot modify documents for an approved or submitted trip' });
+    }
 
     let query, values;
     if (req.file) {
@@ -728,14 +850,16 @@ app.put('/api/trips/:invoice/documents/:id', requireAuth, upload.single('file'),
 });
 
 // Delete a supporting doc
-app.delete('/api/trips/:invoice/documents/:id', requireAuth, async (req, res) => {
+app.delete('/api/trips/:invoice/documents/:id', requireAuth, requireRegularUser, async (req, res) => {
   const invoice = decodeURIComponent(req.params.invoice);
   const docId = parseInt(req.params.id);
 
   try {
-    const tripCheck = await pool.query('SELECT status FROM trips WHERE yantriki_invoice_number = $1 AND deleted_date IS NULL', [invoice]);
+    const tripCheck = await pool.query('SELECT status, submitted_for_approval FROM trips WHERE yantriki_invoice_number = $1 AND deleted_date IS NULL', [invoice]);
     if (tripCheck.rows.length === 0) { return res.status(404).json({ error: 'Trip not found' }); }
-    if (tripCheck.rows[0].status === 'approved') { return res.status(403).json({ error: 'Cannot modify documents for an approved trip' }); }
+    if (tripCheck.rows[0].status === 'approved' || tripCheck.rows[0].submitted_for_approval) {
+      return res.status(403).json({ error: 'Cannot modify documents for an approved or submitted trip' });
+    }
 
     const result = await pool.query('DELETE FROM supporting_docs WHERE id = $1 AND trip_invoice_number = $2 RETURNING *', [docId, invoice]);
     if (result.rowCount === 0) { return res.status(404).json({ error: 'Document not found' }); }
@@ -757,6 +881,20 @@ app.get('/api/trips/:invoice/documents/:id/file', requireAuth, async (req, res) 
 });
 
 // ==================== STATIC FILES ====================
+// Set no-cache for HTML files to prevent CDN caching on Render
+app.use((req, res, next) => {
+  if (req.path.endsWith('.html') || req.path === '/') {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
+  next();
+});
+// Redirect old cached supporting-docs.html URL to sd.html (bypass CDN cache)
+app.get('/supporting-docs.html', (req, res) => {
+  res.redirect(301, '/sd.html?' + req.url.split('?')[1] || '');
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('*', (req, res) => {
@@ -769,6 +907,7 @@ async function start() {
   await ensureTripAuditColumns();
   await ensureAdminUsers();
   await ensureSupportingDocsTable();
+  await ensureActiveSessionsTable();
   app.listen(port, () => {
     console.log(`Node.js server running on port ${port}`);
   });
