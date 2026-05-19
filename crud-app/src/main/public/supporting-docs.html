@@ -239,6 +239,65 @@
 
     <script src="js/session-manager.js"></script>
     <script src="js/sd.js"></script>
+    <script>
+        // ----- Inline Submit for Approval logic (bypasses CDN cache) -----
+        document.addEventListener('DOMContentLoaded', function () {
+            var submitBtn = document.getElementById('sdSubmitApprovalBtn');
+            if (!submitBtn) return;
+
+            // Get trip ID from URL
+            var urlParams = new URLSearchParams(window.location.search);
+            var tripId = urlParams.get('invoice') || urlParams.get('tripId');
+
+            // Get logged-in user
+            var currentUser = null;
+            try {
+                var u = JSON.parse(sessionStorage.getItem('user') || localStorage.getItem('user'));
+                if (u) currentUser = u.username || u.displayName || u.email || u.user;
+            } catch (e) { }
+
+            // Only show for non-approver users
+            var role = (sessionStorage.getItem('role') || '').toLowerCase();
+            if (role === 'approver') {
+                submitBtn.style.display = 'none';
+            }
+
+            submitBtn.addEventListener('click', async function () {
+                if (!tripId) { alert('No trip selected.'); return; }
+                if (!currentUser) { alert('User not identified. Please log in.'); return; }
+
+                if (!confirm('Submit this trip for approval? Documents will be locked for editing.')) return;
+
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Submitting...';
+
+                try {
+                    var resp = await fetch('/api/trips/' + encodeURIComponent(tripId) + '/submit-approval', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ submittedBy: currentUser })
+                    });
+
+                    var data = await resp.json();
+
+                    if (!resp.ok) {
+                        alert('Submit failed: ' + (data.error || resp.statusText));
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = 'Submit for Approval';
+                        return;
+                    }
+
+                    alert('Trip submitted for approval successfully! An email notification has been sent.');
+                    // Free the record: redirect back to main page
+                    window.location.href = '/';
+                } catch (err) {
+                    alert('Network error: ' + err.message);
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Submit for Approval';
+                }
+            });
+        });
+    </script>
 </body>
 
 </html>
