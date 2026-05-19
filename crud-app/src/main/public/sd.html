@@ -240,21 +240,35 @@
         var currentTripId = new URLSearchParams(window.location.search).get('invoice');
         var sdDocuments = [];
         var sdEditingId = null;
-        var role = (sessionStorage.getItem('role') || '').toLowerCase();
-        var isApprover = role === 'approver';
+        var currentUser = null;
+        var role = '';
+        var isApprover = false;
 
         function fmtDate(d) { if (!d) return ''; var dt = new Date(d); if (isNaN(dt)) return d; return dt.toISOString().split('T')[0]; }
         function fmtCurr(v) { return '₹ ' + (Number(v) || 0).toFixed(2); }
 
-        (function checkAuth() {
-            var u = sessionStorage.getItem('user') || localStorage.getItem('user');
-            if (!u) { window.location.href = 'login.html'; return; }
-            try { var up = JSON.parse(u); document.getElementById('navUser').textContent = up.displayName || up.username || up.email || up.user || 'User'; } catch (e) { document.getElementById('navUser').textContent = 'User'; }
+        (async function init() {
+            // Use server-side auth check (same as app.js/approver.js)
+            try {
+                var authRes = await fetch('/api/auth/me', { credentials: 'same-origin' });
+                if (!authRes.ok) { window.location.href = 'login.html'; return; }
+                var authData = await authRes.json();
+                currentUser = authData;
+                role = authData.role || '';
+                isApprover = role.toLowerCase() === 'approver';
+                document.getElementById('navUser').textContent = authData.username + '/' + authData.role;
+            } catch (e) { window.location.href = 'login.html'; return; }
+
             var lo = document.getElementById('logoutBtn');
-            if (lo) lo.addEventListener('click', function () { sessionStorage.clear(); localStorage.clear(); window.location.href = 'login.html'; });
+            if (lo) lo.addEventListener('click', async function () {
+                try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }); } catch (e) { }
+                window.location.href = 'login.html';
+            });
+
+            await loadTripInfo();
         })();
 
-        (async function loadTripInfo() {
+        async function loadTripInfo() {
             if (!currentTripId) { document.getElementById('tripInfo').textContent = 'Error: No invoice selected.'; return; }
             try {
                 var resp = await fetch(API_URL + '/' + encodeURIComponent(currentTripId));
@@ -273,7 +287,7 @@
                 if (isApprover) document.getElementById('sdSubmitApprovalBtn').style.display = 'none';
                 loadDocuments();
             } catch (e) { document.getElementById('tripInfo').textContent = 'Error: ' + e.message; }
-        })();
+        }
 
         async function loadDocuments() {
             if (!currentTripId) return;
@@ -416,15 +430,9 @@
             if (!btn) return;
             if (isApprover) { btn.style.display = 'none'; return; }
 
-            var currentUser = null;
-            try {
-                var u = JSON.parse(sessionStorage.getItem('user') || localStorage.getItem('user'));
-                if (u) currentUser = u.username || u.displayName || u.email || u.user;
-            } catch (e) { }
-
             btn.addEventListener('click', async function () {
                 if (!currentTripId) { alert('No trip selected.'); return; }
-                if (!currentUser) { alert('User not identified. Please log in.'); return; }
+                if (!currentUser || !currentUser.username) { alert('User not identified. Please log in.'); return; }
                 if (!confirm('Submit this trip for approval? Documents will be locked for editing.')) return;
 
                 btn.disabled = true;
