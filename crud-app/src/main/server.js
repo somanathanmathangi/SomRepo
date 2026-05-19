@@ -890,6 +890,11 @@ app.use((req, res, next) => {
   }
   next();
 });
+// Redirect old cached supporting-docs.html URL to sd.html (bypass CDN cache)
+app.get('/supporting-docs.html', (req, res) => {
+  res.redirect(301, '/sd.html?' + req.url.split('?')[1] || '');
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('*', (req, res) => {

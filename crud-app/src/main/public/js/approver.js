@@ -150,7 +150,7 @@ function renderPendingTrips(data) {
             <td>${formatDateOnly(trip.travelStartDate)} → ${formatDateOnly(trip.travelEndDate)}</td>
             <td>${esc(trip.createdBy || '—')}</td>
             <td>${formatAuditDate(trip.createdDate)}</td>
-            <td><a href="supporting-docs.html?invoice=${encodeURIComponent(trip.yantrikiInvoiceNumber)}" class="file-link" title="View supporting documents">
+    <td><a href="sd.html?invoice=${encodeURIComponent(trip.yantrikiInvoiceNumber)}" class="file-link" title="View supporting documents">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
                 <polyline points="14 2 14 8 20 8"/>
@@ -193,7 +193,7 @@ function renderAllTrips(data) {
             <td>${formatDateOnly(trip.travelStartDate)} → ${formatDateOnly(trip.travelEndDate)}</td>
             <td><span class="status-badge ${statusClass}">${statusText}</span></td>
             <td>${trip.approvedBy ? esc(trip.approvedBy) : '—'}</td>
-            <td><a href="supporting-docs.html?invoice=${encodeURIComponent(trip.yantrikiInvoiceNumber)}" class="file-link" title="View supporting documents">
+    <td><a href="sd.html?invoice=${encodeURIComponent(trip.yantrikiInvoiceNumber)}" class="file-link" title="View supporting documents">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
                 <polyline points="14 2 14 8 20 8"/>

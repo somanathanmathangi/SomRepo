@@ -257,7 +257,7 @@ async function searchTrips() {
     );
     const results = await response.json();
     renderTrips(results, true);
-    
+
     // Clear pagination container during search since search displays all matched records flatly
     const paginationContainer = document.getElementById('pagination');
     if (paginationContainer) paginationContainer.innerHTML = '';
@@ -438,7 +438,7 @@ function renderTrips(data, isSearch = false) {
     const statusText = formatStatus(trip.status);
     const statusBadge = `<span class="status-badge ${statusClass}">${statusText}</span>`;
 
-    const docLink = `<a href="supporting-docs.html?invoice=${encodeURIComponent(inv)}" class="file-download-link" title="View supporting documents">
+    const docLink = `<a href="sd.html?invoice=${encodeURIComponent(inv)}" class="file-download-link" title="View supporting documents">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;">
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
         <polyline points="14 2 14 8 20 8"/>
