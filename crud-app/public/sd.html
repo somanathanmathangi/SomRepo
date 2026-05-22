@@ -154,7 +154,7 @@
             </div>
 
             <div id="sdReadonlyBanner" class="sd-readonly-banner hidden">
-                &#128274; This trip has been approved. Documents are in read-only mode.
+                &#128274; This trip is in read-only mode.
             </div>
 
             <div id="sdForm" class="sd-form hidden">
@@ -275,13 +275,18 @@
                 if (!resp.ok) { document.getElementById('tripInfo').textContent = 'Trip not found (HTTP ' + resp.status + ')'; return; }
                 var trip = await resp.json();
                 document.getElementById('tripInfo').innerHTML = 'Invoice: <strong>' + (trip.yantrikiInvoiceNumber || currentTripId) + '</strong> &mdash; ' + (trip.reason || '') + ' &mdash; Claimant: <strong>' + (trip.claimant || 'N/A') + '</strong>';
-                if (trip.workflowStatus) {
-                    document.getElementById('sdTripStatus').textContent = trip.workflowStatus;
-                    document.getElementById('sdTripStatus').className = 'status-badge status-' + trip.workflowStatus.toLowerCase().replace(/\s+/g, '-');
-                }
-                var locked = trip.submittedForApproval || trip.workflowStatus === 'Submitted for Approval' || trip.workflowStatus === 'Approved';
+                var displayStatus = trip.workflowStatus || trip.status || 'pending';
+                document.getElementById('sdTripStatus').textContent = displayStatus.charAt(0).toUpperCase() + displayStatus.slice(1);
+                document.getElementById('sdTripStatus').className = 'status-badge status-' + displayStatus.toLowerCase().replace(/\s+/g, '-');
+                var locked = trip.submittedForApproval || trip.status === 'approved';
                 if (locked) {
-                    document.getElementById('sdReadonlyBanner').classList.remove('hidden');
+                    var banner = document.getElementById('sdReadonlyBanner');
+                    if (trip.status === 'approved') {
+                        banner.innerHTML = '&#128274; This trip has been approved. Documents are in read-only mode.';
+                    } else {
+                        banner.innerHTML = '&#128274; This trip has been submitted for approval. Documents are locked until approved/rejected.';
+                    }
+                    banner.classList.remove('hidden');
                     document.getElementById('sdAddNewBtn').style.display = 'none';
                 }
                 if (isApprover) document.getElementById('sdSubmitApprovalBtn').style.display = 'none';
