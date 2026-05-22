@@ -813,9 +813,10 @@ app.post('/api/trips/:invoice/documents', requireAuth, requireRegularUser, uploa
       return res.status(403).json({ error: 'Cannot modify documents for an approved or submitted trip' });
     }
 
+    const docDate = b.docDate || b.date || new Date().toISOString().split('T')[0];
     const result = await pool.query(
       `INSERT INTO supporting_docs (trip_invoice_number, doc_date, description, bill_id, category, bill_amount, page_no, file_name, file_type, file_content, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
-      [invoice, b.docDate, b.description, b.billId, b.category, b.billAmount || 0, b.pageNo, fileName, fileType, fileContent, user]
+      [invoice, docDate, b.description, b.billId, b.category, b.billAmount || 0, b.pageNo, fileName, fileType, fileContent, user]
     );
     res.status(201).json(mapDoc(result.rows[0]));
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -835,13 +836,14 @@ app.put('/api/trips/:invoice/documents/:id', requireAuth, requireRegularUser, up
       return res.status(403).json({ error: 'Cannot modify documents for an approved or submitted trip' });
     }
 
+    const docDate = b.docDate || b.date || new Date().toISOString().split('T')[0];
     let query, values;
     if (req.file) {
       query = `UPDATE supporting_docs SET doc_date=$1, description=$2, bill_id=$3, category=$4, bill_amount=$5, file_name=$6, file_type=$7, file_content=$8 WHERE id=$9 AND trip_invoice_number=$10 RETURNING *`;
-      values = [b.docDate, b.description, b.billId, b.category, b.billAmount || 0, req.file.originalname, req.file.mimetype, req.file.buffer, docId, invoice];
+      values = [docDate, b.description, b.billId, b.category, b.billAmount || 0, req.file.originalname, req.file.mimetype, req.file.buffer, docId, invoice];
     } else {
       query = `UPDATE supporting_docs SET doc_date=$1, description=$2, bill_id=$3, category=$4, bill_amount=$5 WHERE id=$6 AND trip_invoice_number=$7 RETURNING *`;
-      values = [b.docDate, b.description, b.billId, b.category, b.billAmount || 0, docId, invoice];
+      values = [docDate, b.description, b.billId, b.category, b.billAmount || 0, docId, invoice];
     }
     const result = await pool.query(query, values);
     if (result.rowCount === 0) { return res.status(404).json({ error: 'Document not found' }); }
