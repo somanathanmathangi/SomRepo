@@ -136,8 +136,8 @@ async function fetchDashboardStats() {
 async function fetchAllTrips() {
     try {
         const response = await apiFetch(API_URL);
-        const trips = await response.json();
-        renderAllTrips(trips);
+        const data = await response.json();
+        renderAllTrips(data.trips || []);
     } catch (error) {
         if (error.message === 'Unauthorized') return;
         console.error('Error fetching trips:', error);
