@@ -98,6 +98,7 @@ function showSection(sectionName) {
     } else if (sectionName === 'all') {
         document.getElementById('sectionAll').classList.remove('hidden');
         document.getElementById('tabAll').classList.add('active');
+        fetchDashboardStats();
         fetchAllTrips();
     } else if (sectionName === 'search') {
         document.getElementById('sectionSearch').classList.remove('hidden');
@@ -114,6 +115,20 @@ async function fetchPendingTrips() {
     } catch (error) {
         if (error.message === 'Unauthorized') return;
         console.error('Error fetching pending trips:', error);
+    }
+}
+
+// Fetch dashboard stats
+async function fetchDashboardStats() {
+    try {
+        const response = await apiFetch('/api/trips/dashboard');
+        const stats = await response.json();
+        document.getElementById('dashTraveller').textContent = stats.travellerCount;
+        document.getElementById('dashPending').textContent = stats.pendingCount;
+        document.getElementById('dashApproved').textContent = stats.approvedCount;
+    } catch (error) {
+        if (error.message === 'Unauthorized') return;
+        console.error('Error fetching dashboard stats:', error);
     }
 }
 

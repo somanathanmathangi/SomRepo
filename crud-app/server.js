@@ -606,6 +606,28 @@ app.get('/api/trips', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Dashboard stats for Approver/Admin
+app.get('/api/trips/dashboard', requireApprover, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        COUNT(DISTINCT traveller_name) AS traveller_count,
+        COUNT(*) FILTER (WHERE status = 'pending') AS pending_count,
+        COUNT(*) FILTER (WHERE status = 'approved') AS approved_count
+      FROM trips
+      WHERE deleted_date IS NULL
+    `);
+    const row = result.rows[0];
+    res.json({
+      travellerCount: parseInt(row.traveller_count) || 0,
+      pendingCount: parseInt(row.pending_count) || 0,
+      approvedCount: parseInt(row.approved_count) || 0
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/trips/pending', requireApprover, async (req, res) => {
   try {
     const query = `
