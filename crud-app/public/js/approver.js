@@ -282,6 +282,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.location.href = '/approver-login.html';
     });
 
+    // Fetch deployed version
+    (async () => {
+        try {
+            const res = await fetch('/api/version');
+            const data = await res.json();
+            document.getElementById('deployVersion').textContent = data.version || 'unknown';
+        } catch {
+            document.getElementById('deployVersion').textContent = 'unknown';
+        }
+    })();
+
     // Setup navigation
     setupNavigation();
 

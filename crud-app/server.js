@@ -934,6 +934,19 @@ app.get('/api/trips/:invoice/documents/:id/file', requireAuth, async (req, res) 
   } catch (err) { res.status(500).json({ error: 'Failed to download file: ' + err.message }); }
 });
 
+// ==================== VERSION CHECK ====================
+app.get('/api/version', async (req, res) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const versionPath = path.join(__dirname, 'public', 'version.txt');
+    const version = fs.readFileSync(versionPath, 'utf8').trim();
+    res.json({ version, commit: version.split('-')[0] });
+  } catch (err) {
+    res.json({ version: 'unknown', commit: 'unknown' });
+  }
+});
+
 // ==================== STATIC FILES ====================
 // Set no-cache for HTML files to prevent CDN caching on Render
 app.use((req, res, next) => {
