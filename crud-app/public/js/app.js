@@ -54,6 +54,34 @@ function formatAuditDate(iso) {
   }
 }
 
+function formatAuditDate(iso) {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleString(undefined, {
+      dateStyle: 'short',
+      timeStyle: 'short'
+    });
+  } catch {
+    return '—';
+  }
+}
+
+function formatDateOnly(dateStr) {
+  if (!dateStr) return '—';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  } catch {
+    return dateStr;
+  }
+}
 function formatStatus(status) {
   if (!status) return 'Pending';
   return status.charAt(0).toUpperCase() + status.slice(1);
@@ -460,15 +488,15 @@ function renderTrips(data, isSearch = false) {
             <td>${esc(trip.customerName)}</td>
             <td>${esc(trip.customerLocation)}</td>
             <td>${esc(trip.poOrder)}</td>
-            <td>${esc(trip.poDate)}</td>
+            <td>${formatDateOnly(trip.poDate)}</td>
             <td>${esc(trip.travellerName)}</td>
             <td>${esc(trip.travelRoute)}</td>
             <td>${esc(trip.woNumber)}</td>
-            <td>${esc(trip.woDate)}</td>
-            <td>${esc(trip.woStartDate || '—')}</td>
-            <td>${esc(trip.woEndDate || '—')}</td>
-            <td>${esc(trip.travelStartDate)}</td>
-            <td>${esc(trip.travelEndDate)}</td>
+            <td>${formatDateOnly(trip.woDate)}</td>
+            <td>${formatDateOnly(trip.woStartDate)}</td>
+            <td>${formatDateOnly(trip.woEndDate)}</td>
+            <td>${formatDateOnly(trip.travelStartDate)}</td>
+            <td>${formatDateOnly(trip.travelEndDate)}</td>
             <td>${esc(trip.createdBy || '—')}</td>
             <td>${esc(formatAuditDate(trip.createdDate))}</td>
             <td>${esc(trip.updatedBy || '—')}</td>
