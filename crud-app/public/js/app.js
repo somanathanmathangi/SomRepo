@@ -2,6 +2,7 @@ const API_URL = '/api/trips';
 
 const tripList = document.getElementById('tripList');
 const editingInvoiceKey = document.getElementById('editingInvoiceKey');
+
 const customerNameInput = document.getElementById('customerName');
 const customerLocationInput = document.getElementById('customerLocation');
 const poOrderInput = document.getElementById('poOrder');
@@ -13,11 +14,18 @@ const woDateInput = document.getElementById('woDate');
 const travelStartDateInput = document.getElementById('travelStartDate');
 const travelEndDateInput = document.getElementById('travelEndDate');
 const yantrikiInvoiceInput = document.getElementById('yantrikiInvoiceNumber');
+
+const currencyTypeInput = document.getElementById('currencyType');
+const amountInput = document.getElementById('amount');
+const exchangeRateInput = document.getElementById('exchangeRate');
+const amountInINRInput = document.getElementById('amountInINR');
+
 const pkReadonlyHint = document.getElementById('pkReadonlyHint');
 const addBtn = document.getElementById('addBtn');
 const updateBtn = document.getElementById('updateBtn');
 const cancelBtn = document.getElementById('cancelBtn');
 const formTitle = document.getElementById('formTitle');
+
 const searchInput = document.getElementById('searchInput');
 
 const tabShowAll = document.getElementById('tabShowAll');
@@ -28,50 +36,43 @@ const sectionShowAll = document.getElementById('sectionShowAll');
 const sectionRecord = document.getElementById('sectionRecord');
 const sectionSearch = document.getElementById('sectionSearch');
 
-const EMPTY_COLSPAN = 20;
 let currentPage = 1;
 let sortBy = 'yantriki_invoice_number';
 let sortOrder = 'ASC';
 
+let currentUserRole = null;
+let currentUsername = null;
+
 function esc(s) {
-  if (s == null) return '';
+  if (!s) return '';
   const d = document.createElement('div');
   d.textContent = String(s);
   return d.innerHTML;
 }
 
-function formatAuditDate(iso) {
-  if (!iso) return '—';
-  try {
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return '—';
-    return d.toLocaleString(undefined, {
-      dateStyle: 'short',
-      timeStyle: 'short'
-    });
-  } catch {
-    return '—';
-  }
-}
-
 function formatDateOnly(dateStr) {
   if (!dateStr) return '—';
-  try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return '—';
-    return d.toLocaleDateString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  } catch {
-    return dateStr;
-  }
+  const d = new Date(dateStr);
+  if (isNaN(d)) return dateStr;
+  return d.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  });
+}
+
+function formatAuditDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d)) return '—';
+  return d.toLocaleString(undefined, {
+    dateStyle: 'short',
+    timeStyle: 'short'
+  });
 }
 
 function formatStatus(status) {
-  if (!status) return 'Pending';
-  return status.charAt(0).toUpperCase() + status.slice(1);
+  return status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Pending';
 }
 
 function formatStatusClass(status) {
@@ -81,25 +82,59 @@ function formatStatusClass(status) {
   return '';
 }
 
+/* =========================
+   💸 CURRENCY ENGINE
+========================= */
+
+function calculateINR() {
+  if (!amountInput) return;
+
+  const currency = currencyTypeInput?.value;
+  const amount = parseFloat(amountInput.value || 0);
+  const rate = parseFloat(exchangeRateInput?.value || 0);
+
+  if (!amount) {
+    amountInINRInput.value = '';
+    return;
+  }
+
+  if (currency === 'INR') {
+    amountInINRInput.value = amount.toFixed(2);
+    if (exchangeRateInput) {
+      exchangeRateInput.value = 1;
+      exchangeRateInput.disabled = true;
+    }
+  } else {
+    if (exchangeRateInput) exchangeRateInput.disabled = false;
+
+    if (rate > 0) {
+      amountInINRInput.value = (amount * rate).toFixed(2);
+    } else {
+      amountInINRInput.value = '';
+    }
+  }
+}
+
+/* ========================= */
+
 async function apiFetch(url, options = {}) {
   const res = await fetch(url, {
     ...options,
-    credentials: 'same-origin',
-    headers: options.headers
+    credentials: 'same-origin'
   });
+
   if (res.status === 401) {
     window.location.href = '/login.html';
     throw new Error('Unauthorized');
   }
+
   if (!res.ok) {
-    const errBody = await res.json().catch(() => ({}));
-    throw new Error(errBody.error || ('HTTP Error: ' + res.status));
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Request failed');
   }
+
   return res;
 }
-
-let currentUserRole = null;
-let currentUsername = null;
 
 async function initSession() {
   const res = await fetch('/api/auth/me', { credentials: 'same-origin' });
@@ -107,56 +142,53 @@ async function initSession() {
     window.location.href = '/login.html';
     return false;
   }
+
   const data = await res.json();
   currentUserRole = data.role;
   currentUsername = data.username;
 
-  const el = document.getElementById('navUser');
-  if (el) el.textContent = `${data.username}/${data.role}`;
+  document.getElementById('navUser').textContent =
+    `${data.username}/${data.role}`;
 
-  if (currentUserRole && (currentUserRole.toLowerCase() === 'admin' || currentUserRole.toLowerCase() === 'approver')) {
-    const recordTab = document.getElementById('tabRecord');
-    if (recordTab) recordTab.style.display = 'none';
+  if (currentUserRole === 'admin' || currentUserRole === 'approver') {
+    document.getElementById('tabRecord').style.display = 'none';
   }
 
-  if (currentUserRole && currentUserRole.toLowerCase() === 'guser') {
-    if (travellerNameInput) travellerNameInput.value = currentUsername || '';
+  if (currentUserRole === 'guser' && travellerNameInput) {
+    travellerNameInput.value = currentUsername;
   }
 
   return true;
 }
 
+/* =========================
+   FETCH + RENDER
+========================= */
+
 async function fetchTrips(page = currentPage) {
   currentPage = page;
-  try {
-    const response = await apiFetch(`${API_URL}?page=${currentPage}&sortBy=${sortBy}&sortOrder=${sortOrder}`);
-    const data = await response.json();
-    renderTrips(data.trips);
-    renderPagination(data.pagination);
-  } catch (err) {
-    if (err.message === 'Unauthorized') return;
-    console.error('Error fetching trips:', err);
-  }
+
+  const res = await apiFetch(
+    `${API_URL}?page=${page}&sortBy=${sortBy}&sortOrder=${sortOrder}`
+  );
+
+  const data = await res.json();
+  renderTrips(data.trips || []);
 }
 
-function renderTrips(data, isSearch = false) {
+function renderTrips(data) {
   tripList.innerHTML = '';
-  if (data.length === 0) {
-    tripList.innerHTML = `<tr><td colspan="${EMPTY_COLSPAN}" class="table-empty">No records found.</td></tr>`;
+
+  if (!data.length) {
+    tripList.innerHTML = `<tr><td colspan="10">No records</td></tr>`;
     return;
   }
 
-  data.forEach((trip) => {
+  data.forEach(trip => {
     const tr = document.createElement('tr');
-    const inv = trip.yantrikiInvoiceNumber;
-
-    const statusClass = formatStatusClass(trip.status);
-    const statusText = formatStatus(trip.status);
-
-    const isApproverOrAdmin = currentUserRole && (currentUserRole.toLowerCase() === 'approver' || currentUserRole.toLowerCase() === 'admin');
 
     tr.innerHTML = `
-      <td class="cell-mono">${esc(inv)}</td>
+      <td>${esc(trip.yantrikiInvoiceNumber)}</td>
       <td>${esc(trip.customerName)}</td>
       <td>${esc(trip.customerLocation)}</td>
       <td>${esc(trip.poOrder)}</td>
@@ -165,17 +197,7 @@ function renderTrips(data, isSearch = false) {
       <td>${esc(trip.travelRoute)}</td>
       <td>${esc(trip.woNumber)}</td>
       <td>${formatDateOnly(trip.woDate)}</td>
-      <td>${formatDateOnly(trip.woStartDate)}</td>
-      <td>${formatDateOnly(trip.woEndDate)}</td>
-      <td>${formatDateOnly(trip.travelStartDate)}</td>
-      <td>${formatDateOnly(trip.travelEndDate)}</td>
-      <td>${esc(trip.createdBy || '—')}</td>
-      <td>${formatAuditDate(trip.createdDate)}</td>
-      <td>${esc(trip.updatedBy || '—')}</td>
-      <td>${formatAuditDate(trip.updatedDate)}</td>
-      <td>
-        <span class="status-badge ${statusClass}">${statusText}</span>
-      </td>
+      <td><span class="${formatStatusClass(trip.status)}">${formatStatus(trip.status)}</span></td>
       <td>${esc(trip.approvedBy || '—')}</td>
     `;
 
@@ -183,30 +205,106 @@ function renderTrips(data, isSearch = false) {
   });
 }
 
-function showError(message) {
-  const errDiv = document.getElementById('formError');
-  errDiv.textContent = message;
-  errDiv.hidden = false;
+/* =========================
+   FORM HANDLING
+========================= */
+
+function getFormData() {
+  return {
+    yantrikiInvoiceNumber: yantrikiInvoiceInput.value.trim(),
+    customerName: customerNameInput.value.trim(),
+    customerLocation: customerLocationInput.value.trim(),
+    poOrder: poOrderInput.value.trim(),
+    poDate: poDateInput.value,
+    travellerName: travellerNameInput.value.trim(),
+    travelRoute: travelRouteInput.value.trim(),
+    woNumber: woNumberInput.value.trim(),
+    woDate: woDateInput.value,
+    travelStartDate: travelStartDateInput.value,
+    travelEndDate: travelEndDateInput.value,
+
+    currencyType: currencyTypeInput?.value,
+    amount: amountInput?.value,
+    exchangeRate: exchangeRateInput?.value,
+    amountInINR: amountInINRInput?.value
+  };
 }
 
-function clearError() {
-  const errDiv = document.getElementById('formError');
-  errDiv.hidden = true;
-  errDiv.textContent = '';
-}
+/* =========================
+   VALIDATION
+========================= */
 
 function validateData(data) {
-  clearError();
-  for (const key of Object.keys(data)) {
-    if (!data[key]) {
+  for (const k in data) {
+    if (!data[k]) {
       showError('Missing required fields');
       return false;
     }
   }
+
+  if (data.currencyType !== 'INR' && !data.exchangeRate) {
+    showError('Exchange rate required for foreign currency');
+    return false;
+  }
+
   return true;
 }
 
+function showError(msg) {
+  const el = document.getElementById('formError');
+  el.hidden = false;
+  el.textContent = msg;
+}
+
+function clearError() {
+  const el = document.getElementById('formError');
+  el.hidden = true;
+}
+
+/* =========================
+   CREATE / UPDATE
+========================= */
+
+async function createTrip() {
+  const data = getFormData();
+  if (!validateData(data)) return;
+
+  await apiFetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+
+  resetForm();
+  fetchTrips();
+}
+
+async function updateTrip() {
+  const key = editingInvoiceKey.value;
+  const data = getFormData();
+
+  if (!validateData(data)) return;
+
+  await apiFetch(`${API_URL}/${key}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+
+  resetForm();
+  fetchTrips();
+}
+
+/* =========================
+   EVENTS
+========================= */
+
 window.addEventListener('DOMContentLoaded', async () => {
   if (!(await initSession())) return;
+
   fetchTrips();
+
+  currencyTypeInput?.addEventListener('change', calculateINR);
+  amountInput?.addEventListener('input', calculateINR);
+  exchangeRateInput?.addEventListener('input', calculateINR);
 });

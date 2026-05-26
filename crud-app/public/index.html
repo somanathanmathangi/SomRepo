@@ -25,6 +25,7 @@
             <button type="button" class="tab-btn" id="tabSearch">Search Trip</button>
         </nav>
 
+        <!-- SEARCH -->
         <section id="sectionSearch" class="page-section hidden">
             <div class="search-section">
                 <div class="search-field-wrap">
@@ -41,149 +42,120 @@
             </div>
         </section>
 
+        <!-- RECORD FORM -->
         <section id="sectionRecord" class="page-section hidden">
             <div class="form-section form-section-wide">
                 <h3 id="formTitle">Record New Trip</h3>
                 <input type="hidden" id="editingInvoiceKey" value="">
 
+                <!-- 🔥 FORM GRID START -->
                 <div class="form-grid">
-                    <div class="form-group">
-                        <label for="customerName">Customer Name<span class="required-mark"
-                                aria-hidden="true">*</span></label>
-                        <input type="text" id="customerName" aria-required="true" autocomplete="organization">
-                    </div>
-                    <div class="form-group">
-                        <label for="customerLocation">Customer Location<span class="required-mark"
-                                aria-hidden="true">*</span></label>
-                        <input type="text" id="customerLocation" aria-required="true" autocomplete="off">
-                    </div>
-                    <div class="form-group">
-                        <label for="poOrder">PO Order<span class="required-mark" aria-hidden="true">*</span></label>
-                        <input type="text" id="poOrder" aria-required="true" autocomplete="off">
-                    </div>
-                    <div class="form-group form-group-date">
-                        <label for="poDate">PO Date<span class="required-mark" aria-hidden="true">*</span></label>
-                        <div class="date-field">
-                            <span class="date-field-icon" aria-hidden="true">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <rect x="3" y="4" width="18" height="18" rx="2" />
-                                    <path d="M16 2v4M8 2v4M3 10h18" />
-                                </svg>
-                            </span>
-                            <input type="date" id="poDate" class="input-date" autocomplete="off" aria-required="true">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="travellerName">Traveller Name<span class="required-mark"
-                                aria-hidden="true">*</span></label>
-                        <input type="text" id="travellerName" aria-required="true" autocomplete="name">
-                    </div>
-                    <div class="form-group">
-                        <label for="travelRoute">Travel Route<span class="required-mark"
-                                aria-hidden="true">*</span></label>
-                        <input type="text" id="travelRoute" aria-required="true" autocomplete="off">
-                    </div>
-                    <div class="form-group">
-                        <label for="woNumber">WO Number<span class="required-mark" aria-hidden="true">*</span></label>
-                        <input type="text" id="woNumber" aria-required="true" autocomplete="off">
-                    </div>
-                    <div class="form-group form-group-date">
-                        <label for="woDate">WO Date<span class="required-mark" aria-hidden="true">*</span></label>
-                        <div class="date-field">
-                            <span class="date-field-icon" aria-hidden="true">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <rect x="3" y="4" width="18" height="18" rx="2" />
-                                    <path d="M16 2v4M8 2v4M3 10h18" />
-                                </svg>
-                            </span>
-                            <input type="date" id="woDate" class="input-date" autocomplete="off" aria-required="true">
-                        </div>
-                    </div>
-                    <div class="form-group form-group-date">
-                        <label for="travelStartDate">Travel Start Date<span class="required-mark"
-                                aria-hidden="true">*</span></label>
-                        <div class="date-field">
-                            <span class="date-field-icon" aria-hidden="true">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <rect x="3" y="4" width="18" height="18" rx="2" />
-                                    <path d="M16 2v4M8 2v4M3 10h18" />
-                                </svg>
-                            </span>
-                            <input type="date" id="travelStartDate" class="input-date" autocomplete="off"
-                                aria-required="true">
-                        </div>
-                    </div>
-                    <div class="form-group form-group-date">
-                        <label for="travelEndDate">Travel End Date<span class="required-mark"
-                                aria-hidden="true">*</span></label>
-                        <div class="date-field">
-                            <span class="date-field-icon" aria-hidden="true">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <rect x="3" y="4" width="18" height="18" rx="2" />
-                                    <path d="M16 2v4M8 2v4M3 10h18" />
-                                </svg>
-                            </span>
-                            <input type="date" id="travelEndDate" class="input-date" autocomplete="off"
-                                aria-required="true">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="yantrikiInvoiceNumber">Yantriki Invoice Number<span class="required-mark"
-                                 aria-hidden="true">*</span></label>
-                        <input type="text" id="yantrikiInvoiceNumber" aria-required="true" autocomplete="off" />
-                    </div>
-                    <div class="form-group form-group-date">
-                        <label for="woStartDate">WO Start Date<span class="required-mark" aria-hidden="true">*</span></label>
-                        <div class="date-field">
-                            <span class="date-field-icon" aria-hidden="true">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <rect x="3" y="4" width="18" height="18" rx="2" />
-                                    <path d="M16 2v4M8 2v4M3 10h18" />
-                                </svg>
-                            </span>
-                            <input type="date" id="woStartDate" class="input-date" autocomplete="off" aria-required="true">
-                        </div>
-                    </div>
-                    <div class="form-group form-group-date">
-                        <label for="woEndDate">WO End Date<span class="required-mark" aria-hidden="true">*</span></label>
-                        <div class="date-field">
-                            <span class="date-field-icon" aria-hidden="true">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <rect x="3" y="4" width="18" height="18" rx="2" />
-                                    <path d="M16 2v4M8 2v4M3 10h18" />
-                                </svg>
-                            </span>
-                            <input type="date" id="woEndDate" class="input-date" autocomplete="off" aria-required="true">
-                        </div>
-                    </div>
-
 
                     <div class="form-group">
-                        <label for="pkReadonlyHint" class="field-hint hidden" id="pkReadonlyHint">Primary key — cannot
-                            be changed while editing.</label>
+                        <label for="customerName">Customer Name<span class="required-mark">*</span></label>
+                        <input type="text" id="customerName">
                     </div>
+
+                    <div class="form-group">
+                        <label for="customerLocation">Customer Location<span class="required-mark">*</span></label>
+                        <input type="text" id="customerLocation">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="poOrder">PO Order<span class="required-mark">*</span></label>
+                        <input type="text" id="poOrder">
+                    </div>
+
+                    <div class="form-group form-group-date">
+                        <label for="poDate">PO Date<span class="required-mark">*</span></label>
+                        <input type="date" id="poDate" class="input-date">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="travellerName">Traveller Name<span class="required-mark">*</span></label>
+                        <input type="text" id="travellerName">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="travelRoute">Travel Route<span class="required-mark">*</span></label>
+                        <input type="text" id="travelRoute">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="woNumber">WO Number<span class="required-mark">*</span></label>
+                        <input type="text" id="woNumber">
+                    </div>
+
+                    <div class="form-group form-group-date">
+                        <label for="woDate">WO Date<span class="required-mark">*</span></label>
+                        <input type="date" id="woDate">
+                    </div>
+
+                    <div class="form-group form-group-date">
+                        <label for="travelStartDate">Travel Start Date<span class="required-mark">*</span></label>
+                        <input type="date" id="travelStartDate">
+                    </div>
+
+                    <div class="form-group form-group-date">
+                        <label for="travelEndDate">Travel End Date<span class="required-mark">*</span></label>
+                        <input type="date" id="travelEndDate">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="yantrikiInvoiceNumber">Yantriki Invoice Number<span class="required-mark">*</span></label>
+                        <input type="text" id="yantrikiInvoiceNumber">
+                    </div>
+
+                    <div class="form-group form-group-date">
+                        <label for="woStartDate">WO Start Date<span class="required-mark">*</span></label>
+                        <input type="date" id="woStartDate">
+                    </div>
+
+                    <div class="form-group form-group-date">
+                        <label for="woEndDate">WO End Date<span class="required-mark">*</span></label>
+                        <input type="date" id="woEndDate">
+                    </div>
+
+                    <!-- 💰 CURRENCY SYSTEM ADDED -->
+                    <div class="form-group">
+                        <label for="currencyType">Currency Type<span class="required-mark">*</span></label>
+                        <select id="currencyType">
+                            <option value="INR">INR (India)</option>
+                            <option value="USD">USD (USA)</option>
+                            <option value="EUR">EUR (Europe)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="amount">Amount<span class="required-mark">*</span></label>
+                        <input type="number" id="amount">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="exchangeRate">Exchange Rate (to INR)</label>
+                        <input type="number" id="exchangeRate">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="amountInINR">Amount in INR</label>
+                        <input type="text" id="amountInINR" readonly>
+                    </div>
+
                 </div>
+                <!-- 🔥 FORM GRID END -->
 
-                <div id="formError" class="form-error" role="alert" hidden></div>
+                <div id="formError" class="form-error" hidden></div>
+
                 <div class="form-actions">
-                    <button type="button" class="btn btn-primary" id="addBtn" onclick="createTrip()">Add Trip
-                        Record</button>
-                    <button type="button" class="btn btn-update" id="updateBtn" onclick="updateTrip()">Update Trip
-                        Record</button>
-                    <button type="button" class="btn btn-secondary" id="clearBtn" onclick="resetForm()">Clear
-                        Fields</button>
-                    <button type="button" class="btn btn-cancel" id="cancelBtn" onclick="showSection('showAll')">Back to
-                        List</button>
+                    <button type="button" class="btn btn-primary" id="addBtn" onclick="createTrip()">Add Trip Record</button>
+                    <button type="button" class="btn btn-update" id="updateBtn" onclick="updateTrip()">Update Trip Record</button>
+                    <button type="button" class="btn btn-secondary" id="clearBtn" onclick="resetForm()">Clear Fields</button>
+                    <button type="button" class="btn btn-cancel" id="cancelBtn" onclick="showSection('showAll')">Back to List</button>
                 </div>
             </div>
         </section>
 
+        <!-- TABLE -->
         <section id="sectionShowAll" class="page-section">
             <div class="table-container">
                 <table>
@@ -215,9 +187,8 @@
                     <tbody id="tripList"></tbody>
                 </table>
             </div>
-            <div class="pagination-container" id="pagination">
-                <!-- Pagination buttons injected here -->
-            </div>
+
+            <div class="pagination-container" id="pagination"></div>
         </section>
     </div>
 
