@@ -179,7 +179,7 @@
         if (!editingUsername && !password) { errEl.textContent = 'Password is required for new users.'; errEl.hidden = false; return; }
         if (!userRole) { errEl.textContent = 'Role is required.'; errEl.hidden = false; return; }
 
-        const body = { userRole: userRole };
+        const body = { username: username, userRole: userRole };
         if (password) body.password = password;
 
         try {
