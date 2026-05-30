@@ -215,7 +215,7 @@
         });
         if (selectedRoles.length === 0) { errEl.textContent = 'At least one role is required.'; errEl.hidden = false; return; }
         var userRole = selectedRoles.join(',');
-        var body = { username: username, role: userRole };
+        var body = { username: username, userRole: userRole };
         if (password) body.password = password;
 
         try {
