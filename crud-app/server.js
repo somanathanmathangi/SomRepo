@@ -157,8 +157,8 @@ function requireRegularUser(req, res, next) {
     return;
   }
   const role = (req.session.userRole || '').toLowerCase();
-  if (role === 'approver') {
-    res.status(403).json({ error: 'Forbidden: Approvers cannot create or modify records.' });
+  if (role === 'approver' || role === 'admin') {
+    res.status(403).json({ error: 'Forbidden: Admins and Approvers cannot create or modify records.' });
     return;
   }
   next();

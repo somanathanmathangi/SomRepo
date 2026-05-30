@@ -144,29 +144,27 @@ async function initSession() {
   const el = document.getElementById('navUser');
   if (el) el.textContent = `${data.username}/${data.role}`;
 
-  // For Admin: show Admin Dashboard button and Delete All Trips button, do not redirect
+  // For Admin: redirect to admin dashboard and hide main UI tabs
   if (currentUserRole && currentUserRole.toLowerCase() === 'admin') {
-    const userBar = document.querySelector('.user-bar');
-    if (userBar && !document.getElementById('adminDashboardBtn')) {
-      const btn = document.createElement('a');
-      btn.href = '/admin.html';
-      btn.id = 'adminDashboardBtn';
-      btn.className = 'btn btn-secondary btn-sm';
-      btn.style.marginRight = '8px';
-      btn.style.textDecoration = 'none';
-      btn.style.display = 'inline-block';
-      btn.textContent = 'Admin Dashboard';
-      userBar.insertBefore(btn, document.getElementById('logoutBtn'));
-    }
-    const adminActions = document.getElementById('adminTripsActions');
-    if (adminActions) adminActions.classList.remove('hidden');
+    window.location.href = '/admin.html';
+    return false;
   }
+  // Existing admin actions UI (removed)
+  // const userBar = document.querySelector('.user-bar');
+  // if (userBar && !document.getElementById('adminDashboardBtn')) {
+  //   const btn = document.createElement('a');
+  //   btn.href = '/admin.html';
+  //   btn.id = 'adminDashboardBtn';
+  //   btn.className = 'btn btn-secondary btn-sm';
+  //   btn.style.marginRight = '8px';
+  //   btn.style.textDecoration = 'none';
+  //   btn.style.display = 'inline-block';
+  //   btn.textContent = 'Admin Dashboard';
+  //   userBar.insertBefore(btn, document.getElementById('logoutBtn'));
+  // }
+  // const adminActions = document.getElementById('adminTripsActions');
+  // if (adminActions) adminActions.classList.remove('hidden');
 
-  // Hide Create Trip option (Record Trip tab) for Approver role
-  if (currentUserRole && currentUserRole.toLowerCase() === 'approver') {
-    const recordTab = document.getElementById('tabRecord');
-    if (recordTab) recordTab.style.display = 'none';
-  }
 
   // Auto-populate traveller name with username if the role is guser
   if (currentUserRole && currentUserRole.toLowerCase() === 'guser') {
