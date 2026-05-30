@@ -70,6 +70,23 @@
         }
     }
 
+    // ===== Form visibility helpers =====
+    function showUserForm() {
+        document.getElementById('userForm').classList.remove('hidden');
+    }
+
+    function hideUserForm() {
+        document.getElementById('userForm').classList.add('hidden');
+    }
+
+    function showCustomerForm() {
+        document.getElementById('customerForm').classList.remove('hidden');
+    }
+
+    function hideCustomerForm() {
+        document.getElementById('customerForm').classList.add('hidden');
+    }
+
     // ===== USER ADMINISTRATION =====
     async function loadUsers() {
         try {
@@ -113,6 +130,7 @@
         document.getElementById('userCancelBtn').style.display = 'inline-block';
         document.getElementById('userFormError').hidden = true;
         document.getElementById('userFormSuccess').hidden = true;
+        showUserForm();
     };
 
     window.adminDeleteUser = async function (username) {
@@ -331,8 +349,19 @@
         document.getElementById('tabCustomers').addEventListener('click', function () { showSection('customers'); });
 
         // User form
+        document.getElementById('addUserBtn').addEventListener('click', function () { resetUserForm(); showUserForm(); });
         document.getElementById('userSaveBtn').addEventListener('click', saveUser);
-        document.getElementById('userCancelBtn').addEventListener('click', resetUserForm);
+        document.getElementById('userCancelBtn').addEventListener('click', function () { resetUserForm(); hideUserForm(); });
+
+        // Show Password toggle
+        document.getElementById('showPassword').addEventListener('change', function () {
+            const passField = document.getElementById('userPassword');
+            if (this.checked) {
+                passField.type = 'text';
+            } else {
+                passField.type = 'password';
+            }
+        });
 
         // Customer form
         document.getElementById('customerSaveBtn').addEventListener('click', saveCustomer);

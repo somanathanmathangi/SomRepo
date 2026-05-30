@@ -138,9 +138,12 @@
 
         <!-- ============ USER ADMINISTRATION SECTION ============ -->
         <section id="sectionUsers" class="page-section">
-            <h3 class="section-title">User Administration</h3>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 class="section-title" style="margin: 0;">User Administration</h3>
+                <button type="button" class="btn btn-primary" id="addUserBtn">+ Add New User</button>
+            </div>
 
-            <div class="admin-form" id="userForm">
+            <div class="admin-form hidden" id="userForm">
                 <h4 id="userFormTitle">Add New User</h4>
                 <input type="hidden" id="editUsername" value="">
                 <div class="admin-form-grid">
@@ -151,6 +154,13 @@
                     <div class="form-group">
                         <label>Password<span class="required-mark">*</span></label>
                         <input type="password" id="userPassword" placeholder="Enter password" autocomplete="off">
+                        <div style="margin-top: 6px; display: flex; align-items: center; gap: 6px;">
+                            <input type="checkbox" id="showPassword"
+                                style="width: auto !important; padding: 0 !important; cursor: pointer; margin: 0;">
+                            <label for="showPassword"
+                                style="margin: 0; font-size: 0.85em; font-weight: normal; cursor: pointer; user-select: none;">Show
+                                Password</label>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label>Role<span class="required-mark">*</span></label>
