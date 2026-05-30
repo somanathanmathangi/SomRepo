@@ -144,10 +144,22 @@ async function initSession() {
   const el = document.getElementById('navUser');
   if (el) el.textContent = `${data.username}/${data.role}`;
 
-  // For Admin: redirect to admin dashboard, they cannot use the main app
+  // For Admin: show Admin Dashboard button and Delete All Trips button, do not redirect
   if (currentUserRole && currentUserRole.toLowerCase() === 'admin') {
-    window.location.href = '/admin.html';
-    return false;
+    const userBar = document.querySelector('.user-bar');
+    if (userBar && !document.getElementById('adminDashboardBtn')) {
+      const btn = document.createElement('a');
+      btn.href = '/admin.html';
+      btn.id = 'adminDashboardBtn';
+      btn.className = 'btn btn-secondary btn-sm';
+      btn.style.marginRight = '8px';
+      btn.style.textDecoration = 'none';
+      btn.style.display = 'inline-block';
+      btn.textContent = 'Admin Dashboard';
+      userBar.insertBefore(btn, document.getElementById('logoutBtn'));
+    }
+    const adminActions = document.getElementById('adminTripsActions');
+    if (adminActions) adminActions.classList.remove('hidden');
   }
 
   // Hide Create Trip option (Record Trip tab) for Approver role
@@ -507,7 +519,8 @@ function renderTrips(data, isSearch = false) {
       ? `<br><span class="rejection-reason">Reason: ${esc(trip.rejectionReason)}</span>`
       : '';
 
-    const isApproverOrAdmin = currentUserRole && (currentUserRole.toLowerCase() === 'approver' || currentUserRole.toLowerCase() === 'admin');
+    const isApprover = currentUserRole && currentUserRole.toLowerCase() === 'approver';
+    const isAdmin = currentUserRole && currentUserRole.toLowerCase() === 'admin';
 
     tr.innerHTML = `
             <td class="cell-mono">${esc(inv)}</td>
@@ -531,22 +544,22 @@ function renderTrips(data, isSearch = false) {
             <td>${statusBadge}${rejectionReason}</td>
             <td>${esc(trip.approvedBy || '—')}</td>
             <td class="actions">
-                ${isApproverOrAdmin ? `
+                ${isApprover ? `
                 <button type="button" class="btn btn-approve btn-sm" data-action="approve" ${trip.status && trip.status !== 'pending' ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : (trip.docCount === 0 ? 'disabled title="Requires supporting documents" style="opacity: 0.5; cursor: not-allowed;"' : '')}>Approve</button>
                 <button type="button" class="btn btn-reject btn-sm" data-action="reject" ${trip.status && trip.status !== 'pending' ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : (trip.docCount === 0 ? 'disabled title="Requires supporting documents" style="opacity: 0.5; cursor: not-allowed;"' : '')}>Reject</button>
                 ` : `
-                <button type="button" class="btn btn-edit" ${(trip.status && trip.status.toLowerCase() === 'approved') || trip.submittedForApproval ? `disabled style="opacity: 0.5; cursor: not-allowed;" title="${trip.status && trip.status.toLowerCase() === 'approved' ? 'Approved records cannot be edited' : 'Submitted records cannot be edited'}"` : ''}>Edit</button>
-                <button type="button" class="btn btn-delete" ${(trip.status && trip.status.toLowerCase() === 'approved') || trip.submittedForApproval ? `disabled style="opacity: 0.5; cursor: not-allowed;" title="${trip.status && trip.status.toLowerCase() === 'approved' ? 'Approved records cannot be deleted' : 'Submitted records cannot be deleted'}"` : ''}>Delete</button>
+                <button type="button" class="btn btn-edit" ${(!isAdmin && ((trip.status && trip.status.toLowerCase() === 'approved') || trip.submittedForApproval)) ? `disabled style="opacity: 0.5; cursor: not-allowed;" title="${trip.status && trip.status.toLowerCase() === 'approved' ? 'Approved records cannot be edited' : 'Submitted records cannot be edited'}"` : ''}>Edit</button>
+                <button type="button" class="btn btn-delete" ${(!isAdmin && ((trip.status && trip.status.toLowerCase() === 'approved') || trip.submittedForApproval)) ? `disabled style="opacity: 0.5; cursor: not-allowed;" title="${trip.status && trip.status.toLowerCase() === 'approved' ? 'Approved records cannot be deleted' : 'Submitted records cannot be deleted'}"` : ''}>Delete</button>
                 `}
             </td>
         `;
 
-    if (isApproverOrAdmin) {
+    if (isApprover) {
       tr.querySelector('[data-action="approve"]').addEventListener('click', () => approveTrip(inv));
       tr.querySelector('[data-action="reject"]').addEventListener('click', () => rejectTrip(inv));
     } else {
-      if ((trip.status && trip.status.toLowerCase() === 'approved') || trip.submittedForApproval) {
-        // Do not bind click handlers for approved/submitted records
+      if (!isAdmin && ((trip.status && trip.status.toLowerCase() === 'approved') || trip.submittedForApproval)) {
+        // Do not bind click handlers for approved/submitted records for non-admins
       } else {
         tr.querySelector('.btn-edit').addEventListener('click', () => editTrip(trip));
         tr.querySelector('.btn-delete').addEventListener('click', () => deleteTrip(inv));
@@ -716,3 +729,21 @@ function validateData(data) {
 
   return true;
 }
+
+async function deleteAllTrips() {
+  if (!confirm('Are you sure you want to delete all trips? This action will soft-delete all active trips.')) return;
+  try {
+    const response = await apiFetch('/api/trips', { method: 'DELETE' });
+    if (response.ok) {
+      alert('All trips deleted successfully.');
+      fetchTrips();
+    } else {
+      const err = await response.json().catch(() => ({}));
+      alert(err.error || 'Failed to delete all trips.');
+    }
+  } catch (error) {
+    if (error.message === 'Unauthorized') return;
+    console.error('Error deleting all trips:', error);
+  }
+}
+window.deleteAllTrips = deleteAllTrips;

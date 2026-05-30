@@ -125,6 +125,19 @@ function requireAuth(req, res, next) {
   next();
 }
 
+function requireAdmin(req, res, next) {
+  if (!req.session || !req.session.username) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  const role = (req.session.userRole || '').toLowerCase();
+  if (role !== 'admin') {
+    res.status(403).json({ error: 'Admin access required' });
+    return;
+  }
+  next();
+}
+
 function requireApprover(req, res, next) {
   if (!req.session || !req.session.username) {
     res.status(401).json({ error: 'Unauthorized' });
@@ -144,8 +157,8 @@ function requireRegularUser(req, res, next) {
     return;
   }
   const role = (req.session.userRole || '').toLowerCase();
-  if (role === 'approver' || role === 'admin') {
-    res.status(403).json({ error: 'Forbidden: Approvers/Admins cannot create or modify records.' });
+  if (role === 'approver') {
+    res.status(403).json({ error: 'Forbidden: Approvers cannot create or modify records.' });
     return;
   }
   next();
@@ -429,11 +442,7 @@ app.get('/api/customers', requireAuth, async (req, res) => {
 });
 
 // Add a customer (admin only)
-app.post('/api/customers', requireAuth, async (req, res) => {
-  const role = (req.session.userRole || '').toLowerCase();
-  if (role !== 'admin') {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
+app.post('/api/customers', requireAuth, requireAdmin, async (req, res) => {
   const { customer_name, customer_location } = req.body;
   if (!customer_name || !customer_location) {
     return res.status(400).json({ error: 'Customer name and location are required.' });
@@ -453,11 +462,7 @@ app.post('/api/customers', requireAuth, async (req, res) => {
 });
 
 // Update a customer (admin only)
-app.put('/api/customers/:id', requireAuth, async (req, res) => {
-  const role = (req.session.userRole || '').toLowerCase();
-  if (role !== 'admin') {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
+app.put('/api/customers/:id', requireAuth, requireAdmin, async (req, res) => {
   const id = parseInt(req.params.id);
   const { customer_name, customer_location } = req.body;
   if (!customer_name || !customer_location) {
@@ -479,11 +484,7 @@ app.put('/api/customers/:id', requireAuth, async (req, res) => {
 });
 
 // Delete a customer (admin only)
-app.delete('/api/customers/:id', requireAuth, async (req, res) => {
-  const role = (req.session.userRole || '').toLowerCase();
-  if (role !== 'admin') {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
+app.delete('/api/customers/:id', requireAuth, requireAdmin, async (req, res) => {
   const id = parseInt(req.params.id);
   try {
     const result = await pool.query('DELETE FROM customers WHERE id = $1 RETURNING *', [id]);
@@ -494,14 +495,20 @@ app.delete('/api/customers/:id', requireAuth, async (req, res) => {
   }
 });
 
+// Delete all customers (admin only)
+app.delete('/api/customers', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM customers RETURNING *');
+    res.json({ message: 'All customers deleted', count: result.rowCount });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ==================== ADMIN USER MANAGEMENT API ====================
 
 // Get all users (admin only)
-app.get('/api/admin/users', requireAuth, async (req, res) => {
-  const role = (req.session.userRole || '').toLowerCase();
-  if (role !== 'admin') {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
+app.get('/api/admin/users', requireAuth, requireAdmin, async (req, res) => {
   try {
     const result = await pool.query('SELECT username, role FROM admin_users ORDER BY username ASC');
     res.json(result.rows);
@@ -511,11 +518,7 @@ app.get('/api/admin/users', requireAuth, async (req, res) => {
 });
 
 // Add a user (admin only)
-app.post('/api/admin/users', requireAuth, async (req, res) => {
-  const role = (req.session.userRole || '').toLowerCase();
-  if (role !== 'admin') {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
+app.post('/api/admin/users', requireAuth, requireAdmin, async (req, res) => {
   const { username, password, userRole } = req.body;
   if (!username || !password || !userRole) {
     return res.status(400).json({ error: 'Username, password, and role are required.' });
@@ -541,11 +544,7 @@ app.post('/api/admin/users', requireAuth, async (req, res) => {
 });
 
 // Update a user (admin only)
-app.put('/api/admin/users/:username', requireAuth, async (req, res) => {
-  const role = (req.session.userRole || '').toLowerCase();
-  if (role !== 'admin') {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
+app.put('/api/admin/users/:username', requireAuth, requireAdmin, async (req, res) => {
   const targetUsername = req.params.username;
   const { password, userRole } = req.body;
   if (!userRole) {
@@ -578,11 +577,7 @@ app.put('/api/admin/users/:username', requireAuth, async (req, res) => {
 });
 
 // Delete a user (admin only)
-app.delete('/api/admin/users/:username', requireAuth, async (req, res) => {
-  const role = (req.session.userRole || '').toLowerCase();
-  if (role !== 'admin') {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
+app.delete('/api/admin/users/:username', requireAuth, requireAdmin, async (req, res) => {
   const targetUsername = req.params.username;
   // Prevent deleting yourself
   if (targetUsername.toLowerCase() === req.session.username.toLowerCase()) {
@@ -947,7 +942,8 @@ app.put('/api/trips/:invoice', requireAuth, requireRegularUser, async (req, res)
   try {
     const tripCheck = await pool.query('SELECT status, submitted_for_approval FROM trips WHERE yantriki_invoice_number = $1 AND deleted_date IS NULL', [originalInvoice]);
     if (tripCheck.rows.length === 0) { res.status(404).json({ error: 'Trip not found' }); return; }
-    if (tripCheck.rows[0].status === 'approved' || tripCheck.rows[0].submitted_for_approval) {
+    const isAdmin = req.session.userRole && req.session.userRole.toLowerCase() === 'admin';
+    if (!isAdmin && (tripCheck.rows[0].status === 'approved' || tripCheck.rows[0].submitted_for_approval)) {
       res.status(403).json({ error: 'Cannot modify a trip that is approved or submitted for approval.' });
       return;
     }
@@ -966,7 +962,8 @@ app.delete('/api/trips/:invoice', requireAuth, requireRegularUser, async (req, r
   try {
     const tripCheck = await pool.query('SELECT status, submitted_for_approval FROM trips WHERE yantriki_invoice_number = $1 AND deleted_date IS NULL', [invoice]);
     if (tripCheck.rows.length === 0) { res.status(404).json({ error: 'Trip not found' }); return; }
-    if (tripCheck.rows[0].status === 'approved' || tripCheck.rows[0].submitted_for_approval) {
+    const isAdmin = req.session.userRole && req.session.userRole.toLowerCase() === 'admin';
+    if (!isAdmin && (tripCheck.rows[0].status === 'approved' || tripCheck.rows[0].submitted_for_approval)) {
       res.status(403).json({ error: 'Cannot delete a trip that is approved or submitted for approval.' });
       return;
     }
@@ -974,6 +971,20 @@ app.delete('/api/trips/:invoice', requireAuth, requireRegularUser, async (req, r
     if (result.rowCount === 0) { res.status(404).json({ error: 'Trip not found or already deleted.' }); return; }
     res.status(200).json(mapTrip(result.rows[0]));
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Delete all trips (admin only)
+app.delete('/api/trips', requireAuth, requireAdmin, async (req, res) => {
+  const user = req.session.username;
+  try {
+    const result = await pool.query(
+      `UPDATE trips SET deleted_by=$1, deleted_date=NOW() WHERE deleted_date IS NULL RETURNING *`,
+      [user]
+    );
+    res.status(200).json({ message: 'All trips deleted', count: result.rowCount });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Approve a trip
@@ -1068,7 +1079,8 @@ app.post('/api/trips/:invoice/documents', requireAuth, requireRegularUser, uploa
     // Check if trip is approved - if so, block modifications
     const tripCheck = await pool.query('SELECT status, submitted_for_approval FROM trips WHERE yantriki_invoice_number = $1 AND deleted_date IS NULL', [invoice]);
     if (tripCheck.rows.length === 0) { return res.status(404).json({ error: 'Trip not found' }); }
-    if (tripCheck.rows[0].status === 'approved' || tripCheck.rows[0].submitted_for_approval) {
+    const isAdmin = req.session.userRole && req.session.userRole.toLowerCase() === 'admin';
+    if (!isAdmin && (tripCheck.rows[0].status === 'approved' || tripCheck.rows[0].submitted_for_approval)) {
       return res.status(403).json({ error: 'Cannot modify documents for an approved or submitted trip' });
     }
 
@@ -1091,7 +1103,8 @@ app.put('/api/trips/:invoice/documents/:id', requireAuth, requireRegularUser, up
     // Check if trip is approved
     const tripCheck = await pool.query('SELECT status, submitted_for_approval FROM trips WHERE yantriki_invoice_number = $1 AND deleted_date IS NULL', [invoice]);
     if (tripCheck.rows.length === 0) { return res.status(404).json({ error: 'Trip not found' }); }
-    if (tripCheck.rows[0].status === 'approved' || tripCheck.rows[0].submitted_for_approval) {
+    const isAdmin = req.session.userRole && req.session.userRole.toLowerCase() === 'admin';
+    if (!isAdmin && (tripCheck.rows[0].status === 'approved' || tripCheck.rows[0].submitted_for_approval)) {
       return res.status(403).json({ error: 'Cannot modify documents for an approved or submitted trip' });
     }
 
@@ -1132,7 +1145,8 @@ app.delete('/api/trips/:invoice/documents/:id', requireAuth, requireRegularUser,
   try {
     const tripCheck = await pool.query('SELECT status, submitted_for_approval FROM trips WHERE yantriki_invoice_number = $1 AND deleted_date IS NULL', [invoice]);
     if (tripCheck.rows.length === 0) { return res.status(404).json({ error: 'Trip not found' }); }
-    if (tripCheck.rows[0].status === 'approved' || tripCheck.rows[0].submitted_for_approval) {
+    const isAdmin = req.session.userRole && req.session.userRole.toLowerCase() === 'admin';
+    if (!isAdmin && (tripCheck.rows[0].status === 'approved' || tripCheck.rows[0].submitted_for_approval)) {
       return res.status(403).json({ error: 'Cannot modify documents for an approved or submitted trip' });
     }
 
