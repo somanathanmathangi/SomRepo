@@ -146,25 +146,21 @@
             <div class="admin-form hidden" id="userForm">
                 <h4 id="userFormTitle">Add New User</h4>
                 <input type="hidden" id="editUsername" value="">
-                <div style="display: flex; gap: 16px;">
-                    <div class="form-group" style="flex: 1;">
+                <div class="admin-form-grid">
+                    <div class="form-group">
                         <label>Username <span class="required-mark">*</span></label>
                         <input type="text" id="userUsername" placeholder="Enter username" autocomplete="off">
                     </div>
-                    <div class="form-group" style="flex: 1;">
+                    <div class="form-group">
                         <label>Password <span class="required-mark">*</span></label>
                         <div style="display: flex; align-items: center; gap: 6px;">
                             <input type="password" id="userPassword" placeholder="Enter password" autocomplete="off"
                                 style="flex: 1;">
-                            <label for="showPassword"
-                                style="display: flex; align-items: center; gap: 2px; font-size: 0.85em; font-weight: normal; cursor: pointer; white-space: nowrap; user-select: none; margin: 0;">
-                                <input type="checkbox" id="showPassword"
-                                    style="width: auto; padding: 0; cursor: pointer; margin: 0;">
-                                Show
-                            </label>
+                            <input type="checkbox" id="showPassword"
+                                style="width: auto; padding: 0; cursor: pointer; margin: 0; flex-shrink: 0;">
                         </div>
                     </div>
-                    <div class="form-group" style="flex: 1;">
+                    <div class="form-group">
                         <label>Role <span class="required-mark">*</span></label>
                         <select id="userRole">
                             <option value="">-- Select Role --</option>
