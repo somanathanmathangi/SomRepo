@@ -136,7 +136,7 @@
             <button type="button" class="tab-btn tab-admin" id="tabCustomers">Customer Management</button>
         </nav>
 
-        <!-- ============ USER ADMINISTRATION SECTION ============ -->
+        <!-- ============ USER ADMINISTRATION ============ -->
         <section id="sectionUsers" class="page-section">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                 <h3 class="section-title" style="margin: 0;">User Administration</h3>
@@ -146,24 +146,26 @@
             <div class="admin-form hidden" id="userForm">
                 <h4 id="userFormTitle">Add New User</h4>
                 <input type="hidden" id="editUsername" value="">
-                <div class="admin-form-grid">
-                    <div class="form-group">
-                        <label>Username<span class="required-mark">*</span></label>
+                <div style="display: flex; gap: 16px;">
+                    <div class="form-group" style="flex: 1;">
+                        <label>Username <span class="required-mark">*</span></label>
                         <input type="text" id="userUsername" placeholder="Enter username" autocomplete="off">
                     </div>
-                    <div class="form-group">
-                        <label>Password<span class="required-mark">*</span></label>
-                        <input type="password" id="userPassword" placeholder="Enter password" autocomplete="off">
-                        <div style="margin-top: 6px; display: flex; align-items: center; gap: 6px;">
-                            <input type="checkbox" id="showPassword"
-                                style="width: auto !important; padding: 0 !important; cursor: pointer; margin: 0;">
+                    <div class="form-group" style="flex: 1;">
+                        <label>Password <span class="required-mark">*</span></label>
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <input type="password" id="userPassword" placeholder="Enter password" autocomplete="off"
+                                style="flex: 1;">
                             <label for="showPassword"
-                                style="margin: 0; font-size: 0.85em; font-weight: normal; cursor: pointer; user-select: none;">Show
-                                Password</label>
+                                style="display: flex; align-items: center; gap: 2px; font-size: 0.85em; font-weight: normal; cursor: pointer; white-space: nowrap; user-select: none; margin: 0;">
+                                <input type="checkbox" id="showPassword"
+                                    style="width: auto; padding: 0; cursor: pointer; margin: 0;">
+                                Show
+                            </label>
                         </div>
                     </div>
-                    <div class="form-group">
-                        <label>Role<span class="required-mark">*</span></label>
+                    <div class="form-group" style="flex: 1;">
+                        <label>Role <span class="required-mark">*</span></label>
                         <select id="userRole">
                             <option value="">-- Select Role --</option>
                             <option value="admin">Admin</option>
@@ -195,7 +197,7 @@
             </div>
         </section>
 
-        <!-- ============ CUSTOMER MANAGEMENT SECTION ============ -->
+        <!-- ============ CUSTOMER MANAGEMENT ============ -->
         <section id="sectionCustomers" class="page-section hidden">
             <h3 class="section-title">Customer Management</h3>
 
@@ -204,11 +206,11 @@
                 <input type="hidden" id="editCustomerId" value="">
                 <div class="admin-form-grid">
                     <div class="form-group">
-                        <label>Customer Name<span class="required-mark">*</span></label>
+                        <label>Customer Name <span class="required-mark">*</span></label>
                         <input type="text" id="customerName" placeholder="Enter customer name" autocomplete="off">
                     </div>
                     <div class="form-group">
-                        <label>Customer Location<span class="required-mark">*</span></label>
+                        <label>Customer Location <span class="required-mark">*</span></label>
                         <input type="text" id="customerLocation" placeholder="Enter location" autocomplete="off">
                     </div>
                 </div>
