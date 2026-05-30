@@ -131,7 +131,7 @@ function requireApprover(req, res, next) {
     return;
   }
   const role = (req.session.userRole || '').toLowerCase();
-  if (role !== 'approver' && role !== 'admin') {
+  if (role !== 'approver') {
     res.status(403).json({ error: 'Approver access required' });
     return;
   }
@@ -389,6 +389,213 @@ async function sendTripEmail(trip) {
     console.log('===============================================');
   }
 }
+
+// Validation helpers
+function containsNumbers(str) {
+  return /\d/.test(str);
+}
+
+function validateNameField(value, fieldName) {
+  if (!value || typeof value !== 'string') return null;
+  if (containsNumbers(value)) {
+    return `${fieldName} should not contain numeric values.`;
+  }
+  return null;
+}
+
+// ==================== CUSTOMERS TABLE & API ====================
+
+async function ensureCustomersTable() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS customers (
+      id SERIAL PRIMARY KEY,
+      customer_name TEXT NOT NULL,
+      customer_location TEXT NOT NULL,
+      created_by TEXT,
+      created_date TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  console.log('PostgreSQL: customers table ensured.');
+}
+
+// Get all customers
+app.get('/api/customers', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM customers ORDER BY customer_name ASC');
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Add a customer (admin only)
+app.post('/api/customers', requireAuth, async (req, res) => {
+  const role = (req.session.userRole || '').toLowerCase();
+  if (role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  const { customer_name, customer_location } = req.body;
+  if (!customer_name || !customer_location) {
+    return res.status(400).json({ error: 'Customer name and location are required.' });
+  }
+  if (containsNumbers(customer_name)) {
+    return res.status(400).json({ error: 'Customer name should not contain numeric values.' });
+  }
+  try {
+    const result = await pool.query(
+      'INSERT INTO customers (customer_name, customer_location, created_by) VALUES ($1, $2, $3) RETURNING *',
+      [customer_name, customer_location, req.session.username]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update a customer (admin only)
+app.put('/api/customers/:id', requireAuth, async (req, res) => {
+  const role = (req.session.userRole || '').toLowerCase();
+  if (role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  const id = parseInt(req.params.id);
+  const { customer_name, customer_location } = req.body;
+  if (!customer_name || !customer_location) {
+    return res.status(400).json({ error: 'Customer name and location are required.' });
+  }
+  if (containsNumbers(customer_name)) {
+    return res.status(400).json({ error: 'Customer name should not contain numeric values.' });
+  }
+  try {
+    const result = await pool.query(
+      'UPDATE customers SET customer_name = $1, customer_location = $2 WHERE id = $3 RETURNING *',
+      [customer_name, customer_location, id]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Customer not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete a customer (admin only)
+app.delete('/api/customers/:id', requireAuth, async (req, res) => {
+  const role = (req.session.userRole || '').toLowerCase();
+  if (role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  const id = parseInt(req.params.id);
+  try {
+    const result = await pool.query('DELETE FROM customers WHERE id = $1 RETURNING *', [id]);
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Customer not found' });
+    res.json({ message: 'Customer deleted', customer: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==================== ADMIN USER MANAGEMENT API ====================
+
+// Get all users (admin only)
+app.get('/api/admin/users', requireAuth, async (req, res) => {
+  const role = (req.session.userRole || '').toLowerCase();
+  if (role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  try {
+    const result = await pool.query('SELECT username, role FROM admin_users ORDER BY username ASC');
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Add a user (admin only)
+app.post('/api/admin/users', requireAuth, async (req, res) => {
+  const role = (req.session.userRole || '').toLowerCase();
+  if (role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  const { username, password, userRole } = req.body;
+  if (!username || !password || !userRole) {
+    return res.status(400).json({ error: 'Username, password, and role are required.' });
+  }
+  const allowedRoles = ['admin', 'approver', 'guser'];
+  if (!allowedRoles.includes(userRole)) {
+    return res.status(400).json({ error: 'Role must be one of: admin, approver, guser.' });
+  }
+  try {
+    const existing = await pool.query('SELECT 1 FROM admin_users WHERE LOWER(username) = LOWER($1)', [username]);
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ error: 'Username already exists.' });
+    }
+    const passwordHash = await bcrypt.hash(password, 10);
+    const result = await pool.query(
+      'INSERT INTO admin_users (username, password_hash, role) VALUES ($1, $2, $3) RETURNING username, role',
+      [username, passwordHash, userRole]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update a user (admin only)
+app.put('/api/admin/users/:username', requireAuth, async (req, res) => {
+  const role = (req.session.userRole || '').toLowerCase();
+  if (role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  const targetUsername = req.params.username;
+  const { password, userRole } = req.body;
+  if (!userRole) {
+    return res.status(400).json({ error: 'Role is required.' });
+  }
+  const allowedRoles = ['admin', 'approver', 'guser'];
+  if (!allowedRoles.includes(userRole)) {
+    return res.status(400).json({ error: 'Role must be one of: admin, approver, guser.' });
+  }
+  try {
+    if (password) {
+      const passwordHash = await bcrypt.hash(password, 10);
+      const result = await pool.query(
+        'UPDATE admin_users SET password_hash = $1, role = $2 WHERE LOWER(username) = LOWER($3) RETURNING username, role',
+        [passwordHash, userRole, targetUsername]
+      );
+      if (result.rowCount === 0) return res.status(404).json({ error: 'User not found' });
+      res.json(result.rows[0]);
+    } else {
+      const result = await pool.query(
+        'UPDATE admin_users SET role = $1 WHERE LOWER(username) = LOWER($2) RETURNING username, role',
+        [userRole, targetUsername]
+      );
+      if (result.rowCount === 0) return res.status(404).json({ error: 'User not found' });
+      res.json(result.rows[0]);
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete a user (admin only)
+app.delete('/api/admin/users/:username', requireAuth, async (req, res) => {
+  const role = (req.session.userRole || '').toLowerCase();
+  if (role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  const targetUsername = req.params.username;
+  // Prevent deleting yourself
+  if (targetUsername.toLowerCase() === req.session.username.toLowerCase()) {
+    return res.status(400).json({ error: 'Cannot delete your own account.' });
+  }
+  try {
+    const result = await pool.query('DELETE FROM admin_users WHERE LOWER(username) = LOWER($1) RETURNING username, role', [targetUsername]);
+    if (result.rowCount === 0) return res.status(404).json({ error: 'User not found' });
+    res.json({ message: 'User deleted', user: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ==================== AUTH ENDPOINTS ====================
 
@@ -707,6 +914,13 @@ app.get('/api/trips/:invoice', requireAuth, async (req, res) => {
 app.post('/api/trips', requireAuth, requireRegularUser, async (req, res) => {
   const b = req.body;
   const user = req.session.username;
+
+  // Validate name fields
+  const customerErr = validateNameField(b.customerName, 'Customer Name');
+  if (customerErr) return res.status(400).json({ error: customerErr });
+  const travellerErr = validateNameField(b.travellerName, 'Traveller Name');
+  if (travellerErr) return res.status(400).json({ error: travellerErr });
+
   const insertQuery = `INSERT INTO trips (yantriki_invoice_number, customer_name, customer_location, po_order, po_date, traveller_name, travel_route, wo_number, wo_date, travel_start_date, travel_end_date, created_by, created_date, status, wo_start_date, wo_end_date) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), 'pending', $13, $14) RETURNING *`;
   const values = [b.yantrikiInvoiceNumber, b.customerName, b.customerLocation, b.poOrder, b.poDate, b.travellerName, b.travelRoute, b.woNumber, b.woDate, b.travelStartDate, b.travelEndDate, user, b.woStartDate, b.woEndDate];
   try {
@@ -723,6 +937,13 @@ app.put('/api/trips/:invoice', requireAuth, requireRegularUser, async (req, res)
   const originalInvoice = decodeURIComponent(req.params.invoice);
   const b = req.body; const user = req.session.username;
   if (b.yantrikiInvoiceNumber !== originalInvoice) { res.status(400).json({ error: 'Yantriki Invoice Number cannot be changed.' }); return; }
+
+  // Validate name fields
+  const customerErr = validateNameField(b.customerName, 'Customer Name');
+  if (customerErr) return res.status(400).json({ error: customerErr });
+  const travellerErr = validateNameField(b.travellerName, 'Traveller Name');
+  if (travellerErr) return res.status(400).json({ error: travellerErr });
+
   try {
     const tripCheck = await pool.query('SELECT status, submitted_for_approval FROM trips WHERE yantriki_invoice_number = $1 AND deleted_date IS NULL', [originalInvoice]);
     if (tripCheck.rows.length === 0) { res.status(404).json({ error: 'Trip not found' }); return; }
@@ -975,6 +1196,7 @@ async function start() {
   await ensureAdminUsers();
   await ensureSupportingDocsTable();
   await ensureActiveSessionsTable();
+  await ensureCustomersTable();
   app.listen(port, () => {
     console.log(`Node.js server running on port ${port}`);
   });

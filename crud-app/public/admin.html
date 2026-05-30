@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Admin Dashboard — Trip Manager</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .admin-header {
+            background-color: #1a1a2e;
+        }
+
+        .admin-header .app-title {
+            font-size: 1.2em;
+        }
+
+        .section-title {
+            margin: 0 0 16px 0;
+            font-size: 1.2em;
+            color: #333;
+        }
+
+        .admin-form {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+
+        .admin-form h4 {
+            margin: 0 0 12px 0;
+            color: #495057;
+        }
+
+        .admin-form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            align-items: end;
+        }
+
+        .admin-form-actions {
+            margin-top: 12px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .table-container {
+            margin-top: 16px;
+        }
+
+        .btn-edit-sm {
+            padding: 4px 8px;
+            font-size: 12px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .btn-edit-sm:hover {
+            background-color: #218838;
+        }
+
+        .btn-delete-sm {
+            padding: 4px 8px;
+            font-size: 12px;
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .btn-delete-sm:hover {
+            background-color: #c82333;
+        }
+
+        .btn-cancel-sm {
+            padding: 4px 8px;
+            font-size: 12px;
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .btn-cancel-sm:hover {
+            background-color: #5a6268;
+        }
+
+        .form-error-inline {
+            color: #dc3545;
+            font-size: 13px;
+            margin-top: 8px;
+        }
+
+        .form-success {
+            color: #28a745;
+            font-size: 13px;
+            margin-top: 8px;
+        }
+
+        .tab-admin {
+            background-color: #e8f4f8;
+            color: #2c3e50;
+        }
+
+        .tab-admin.active {
+            background-color: #2c3e50;
+            color: white;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container container-wide">
+        <header class="app-header admin-header">
+            <h1 class="app-title">Trip Manager — Admin Dashboard</h1>
+            <div class="user-bar">
+                <span class="user-label">Signed in as</span>
+                <span id="navUser" class="nav-user"></span>
+                <button type="button" class="btn btn-secondary btn-sm" id="logoutBtn">Log out</button>
+            </div>
+        </header>
+
+        <nav class="tabs">
+            <button type="button" class="tab-btn tab-admin active" id="tabUsers">User Administration</button>
+            <button type="button" class="tab-btn tab-admin" id="tabCustomers">Customer Management</button>
+        </nav>
+
+        <!-- ============ USER ADMINISTRATION SECTION ============ -->
+        <section id="sectionUsers" class="page-section">
+            <h3 class="section-title">User Administration</h3>
+
+            <div class="admin-form" id="userForm">
+                <h4 id="userFormTitle">Add New User</h4>
+                <input type="hidden" id="editUsername" value="">
+                <div class="admin-form-grid">
+                    <div class="form-group">
+                        <label>Username<span class="required-mark">*</span></label>
+                        <input type="text" id="userUsername" placeholder="Enter username" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label>Password<span class="required-mark">*</span></label>
+                        <input type="password" id="userPassword" placeholder="Enter password" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label>Role<span class="required-mark">*</span></label>
+                        <select id="userRole">
+                            <option value="">-- Select Role --</option>
+                            <option value="admin">Admin</option>
+                            <option value="approver">Approver</option>
+                            <option value="guser">Regular User (guser)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="admin-form-actions">
+                    <button type="button" class="btn btn-primary" id="userSaveBtn">Add User</button>
+                    <button type="button" class="btn btn-secondary" id="userCancelBtn"
+                        style="display:none;">Cancel</button>
+                </div>
+                <div id="userFormError" class="form-error-inline" hidden></div>
+                <div id="userFormSuccess" class="form-success" hidden></div>
+            </div>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Role</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="userList"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- ============ CUSTOMER MANAGEMENT SECTION ============ -->
+        <section id="sectionCustomers" class="page-section hidden">
+            <h3 class="section-title">Customer Management</h3>
+
+            <div class="admin-form" id="customerForm">
+                <h4 id="customerFormTitle">Add New Customer</h4>
+                <input type="hidden" id="editCustomerId" value="">
+                <div class="admin-form-grid">
+                    <div class="form-group">
+                        <label>Customer Name<span class="required-mark">*</span></label>
+                        <input type="text" id="customerName" placeholder="Enter customer name" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label>Customer Location<span class="required-mark">*</span></label>
+                        <input type="text" id="customerLocation" placeholder="Enter location" autocomplete="off">
+                    </div>
+                </div>
+                <div class="admin-form-actions">
+                    <button type="button" class="btn btn-primary" id="customerSaveBtn">Add Customer</button>
+                    <button type="button" class="btn btn-secondary" id="customerCancelBtn"
+                        style="display:none;">Cancel</button>
+                </div>
+                <div id="customerFormError" class="form-error-inline" hidden></div>
+                <div id="customerFormSuccess" class="form-success" hidden></div>
+            </div>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Customer Name</th>
+                            <th>Location</th>
+                            <th>Created By</th>
+                            <th>Created Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="customerList"></tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <script src="js/session-manager.js"></script>
+    <script src="js/admin.js?v=1"></script>
+</body>
+
+</html>

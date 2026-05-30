@@ -85,6 +85,51 @@ async function apiFetch(url, options = {}) {
 
 let currentUserRole = null;
 let currentUsername = null;
+let customersCache = [];
+
+async function loadCustomersDropdown() {
+  try {
+    const res = await fetch('/api/customers', { credentials: 'same-origin' });
+    if (res.ok) {
+      customersCache = await res.json();
+      const nameSelect = document.getElementById('customerName');
+      const locationSelect = document.getElementById('customerLocation');
+      const currentName = nameSelect.value;
+      const currentLocation = locationSelect.value;
+
+      // Save the current selected values if any
+      nameSelect.innerHTML = '<option value="">-- Select Customer --</option>';
+      const locOptions = {};
+      customersCache.forEach(function (c) {
+        nameSelect.innerHTML += '<option value="' + esc(c.customer_name) + '">' + esc(c.customer_name) + '</option>';
+        if (!locOptions[c.customer_name]) locOptions[c.customer_name] = [];
+        locOptions[c.customer_name].push(c.customer_location);
+      });
+      // Restore selection
+      if (currentName) nameSelect.value = currentName;
+
+      // Auto-update location when customer name changes
+      nameSelect.onchange = function () {
+        const selectedName = nameSelect.value;
+        locationSelect.innerHTML = '<option value="">-- Select Location --</option>';
+        if (selectedName && locOptions[selectedName]) {
+          locOptions[selectedName].forEach(function (loc) {
+            locationSelect.innerHTML += '<option value="' + esc(loc) + '">' + esc(loc) + '</option>';
+          });
+        }
+        // Try to restore previous location if available
+        if (currentLocation && locOptions[selectedName] && locOptions[selectedName].includes(currentLocation)) {
+          locationSelect.value = currentLocation;
+        }
+      };
+
+      // Trigger onchange to populate locations for the currently selected name
+      if (currentName) nameSelect.onchange();
+    }
+  } catch (err) {
+    console.error('Error loading customers:', err);
+  }
+}
 
 async function initSession() {
   const res = await fetch('/api/auth/me', { credentials: 'same-origin' });
@@ -99,8 +144,14 @@ async function initSession() {
   const el = document.getElementById('navUser');
   if (el) el.textContent = `${data.username}/${data.role}`;
 
-  // Hide Create Trip option (Record Trip tab) for Admin/Approver roles
-  if (currentUserRole && (currentUserRole.toLowerCase() === 'admin' || currentUserRole.toLowerCase() === 'approver')) {
+  // For Admin: redirect to admin dashboard, they cannot use the main app
+  if (currentUserRole && currentUserRole.toLowerCase() === 'admin') {
+    window.location.href = '/admin.html';
+    return false;
+  }
+
+  // Hide Create Trip option (Record Trip tab) for Approver role
+  if (currentUserRole && currentUserRole.toLowerCase() === 'approver') {
     const recordTab = document.getElementById('tabRecord');
     if (recordTab) recordTab.style.display = 'none';
   }
@@ -109,6 +160,9 @@ async function initSession() {
   if (currentUserRole && currentUserRole.toLowerCase() === 'guser') {
     if (travellerNameInput) travellerNameInput.value = currentUsername || '';
   }
+
+  // Load customers into dropdowns
+  await loadCustomersDropdown();
 
   return true;
 }

@@ -24,9 +24,13 @@
                 <input type="password" id="loginPassword" name="password" autocomplete="current-password" required
                     placeholder="Enter password">
             </div>
-            <div class="form-group" style="flex-direction: row; align-items: center; gap: 8px; margin-top: 8px; margin-bottom: 16px;">
-                <input type="checkbox" id="showPassword" style="width: auto !important; padding: 0 !important; cursor: pointer;">
-                <label for="showPassword" style="margin: 0; font-size: 0.9em; font-weight: normal; cursor: pointer; user-select: none;">Show Password</label>
+            <div class="form-group"
+                style="flex-direction: row; align-items: center; gap: 8px; margin-top: 8px; margin-bottom: 16px;">
+                <input type="checkbox" id="showPassword"
+                    style="width: auto !important; padding: 0 !important; cursor: pointer;">
+                <label for="showPassword"
+                    style="margin: 0; font-size: 0.9em; font-weight: normal; cursor: pointer; user-select: none;">Show
+                    Password</label>
             </div>
             <div id="loginError" class="form-error" role="alert" hidden></div>
             <button type="submit" class="btn btn-primary login-submit">Sign in as Approver</button>
@@ -36,7 +40,7 @@
         </div>
     </div>
     <script>
-        document.getElementById('showPassword').addEventListener('change', function() {
+        document.getElementById('showPassword').addEventListener('change', function () {
             const passField = document.getElementById('loginPassword');
             if (this.checked) {
                 passField.type = 'text';
@@ -60,8 +64,9 @@
                 });
                 const data = await res.json().catch(() => ({}));
                 if (res.ok) {
-                    // Check if user is an approver or admin
-                    if (data.role === 'approver' || data.role === 'admin') {
+                    if (data.role === 'admin') {
+                        window.location.href = '/admin.html';
+                    } else if (data.role === 'approver') {
                         window.location.href = '/approver.html';
                     } else {
                         err.textContent = 'You do not have approver permissions.';

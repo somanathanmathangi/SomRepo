@@ -83,9 +83,10 @@
                 });
                 const data = await res.json().catch(() => ({}));
                 if (res.ok) {
-                    // Redirect approver/admin users to approver dashboard
                     const role = (data.role || '').toLowerCase();
-                    if (role === 'approver' || role === 'admin') {
+                    if (role === 'admin') {
+                        window.location.href = '/admin.html';
+                    } else if (role === 'approver') {
                         window.location.href = '/approver.html';
                     } else {
                         window.location.href = '/';
