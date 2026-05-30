@@ -125,13 +125,18 @@ function requireAuth(req, res, next) {
   next();
 }
 
+function hasRole(userRole, requiredRole) {
+  if (!userRole) return false;
+  var roles = userRole.toLowerCase().split(',').map(function (r) { return r.trim(); });
+  return roles.indexOf(requiredRole.toLowerCase()) !== -1;
+}
+
 function requireAdmin(req, res, next) {
   if (!req.session || !req.session.username) {
     res.status(401).json({ error: 'Unauthorized' });
     return;
   }
-  const role = (req.session.userRole || '').toLowerCase();
-  if (role !== 'admin') {
+  if (!hasRole(req.session.userRole, 'admin')) {
     res.status(403).json({ error: 'Admin access required' });
     return;
   }
@@ -143,8 +148,7 @@ function requireApprover(req, res, next) {
     res.status(401).json({ error: 'Unauthorized' });
     return;
   }
-  const role = (req.session.userRole || '').toLowerCase();
-  if (role !== 'approver') {
+  if (!hasRole(req.session.userRole, 'approver')) {
     res.status(403).json({ error: 'Approver access required' });
     return;
   }
@@ -156,9 +160,8 @@ function requireRegularUser(req, res, next) {
     res.status(401).json({ error: 'Unauthorized' });
     return;
   }
-  const role = (req.session.userRole || '').toLowerCase();
-  if (role === 'approver' || role === 'admin') {
-    res.status(403).json({ error: 'Forbidden: Admins and Approvers cannot create or modify records.' });
+  if (hasRole(req.session.userRole, 'approver') || hasRole(req.session.userRole, 'admin')) {
+    res.status(403).json({ error: 'Forbidden: Approvers/Admins cannot create or modify records.' });
     return;
   }
   next();
@@ -523,9 +526,12 @@ app.post('/api/admin/users', requireAuth, requireAdmin, async (req, res) => {
   if (!username || !password || !userRole) {
     return res.status(400).json({ error: 'Username, password, and role are required.' });
   }
-  const allowedRoles = ['admin', 'approver', 'guser'];
-  if (!allowedRoles.includes(userRole)) {
-    return res.status(400).json({ error: 'Role must be one of: admin, approver, guser.' });
+  // Validate all roles
+  var roleList = userRole.split(',').map(function (r) { return r.trim(); });
+  var allowedRoles = ['admin', 'approver', 'guser'];
+  var invalidRoles = roleList.filter(function (r) { return allowedRoles.indexOf(r) === -1; });
+  if (invalidRoles.length > 0) {
+    return res.status(400).json({ error: 'Invalid roles: ' + invalidRoles.join(', ') + '. Allowed: admin, approver, guser.' });
   }
   try {
     const existing = await pool.query('SELECT 1 FROM admin_users WHERE LOWER(username) = LOWER($1)', [username]);
@@ -550,9 +556,11 @@ app.put('/api/admin/users/:username', requireAuth, requireAdmin, async (req, res
   if (!userRole) {
     return res.status(400).json({ error: 'Role is required.' });
   }
-  const allowedRoles = ['admin', 'approver', 'guser'];
-  if (!allowedRoles.includes(userRole)) {
-    return res.status(400).json({ error: 'Role must be one of: admin, approver, guser.' });
+  var roleList = userRole.split(',').map(function (r) { return r.trim(); });
+  var allowedRoles = ['admin', 'approver', 'guser'];
+  var invalidRoles = roleList.filter(function (r) { return allowedRoles.indexOf(r) === -1; });
+  if (invalidRoles.length > 0) {
+    return res.status(400).json({ error: 'Invalid roles: ' + invalidRoles.join(', ') + '. Allowed: admin, approver, guser.' });
   }
   try {
     if (password) {
@@ -778,7 +786,7 @@ app.get('/api/trips', requireAuth, async (req, res) => {
   const finalSortOrder = sortOrder.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
   try {
-    const isGuser = req.session.userRole && req.session.userRole.toLowerCase() === 'guser';
+    const isGuser = hasRole(req.session.userRole, 'guser');
     let countRes;
     let totalCount;
     let result;
@@ -860,7 +868,7 @@ app.get('/api/trips/search', requireAuth, async (req, res) => {
   const keyword = req.query.keyword;
   if (!keyword) { res.json([]); return; }
   try {
-    const isGuser = req.session.userRole && req.session.userRole.toLowerCase() === 'guser';
+    const isGuser = hasRole(req.session.userRole, 'guser');
     let query;
     let params;
     const param = `%${keyword}%`;
@@ -910,7 +918,7 @@ app.get('/api/trips/:invoice', requireAuth, async (req, res) => {
 
     // Auth check: guser role can only view their own trip records
     const trip = result.rows[0];
-    if (req.session.userRole && req.session.userRole.toLowerCase() === 'guser' && trip.created_by && trip.created_by.toLowerCase() !== req.session.username.toLowerCase()) {
+    if (hasRole(req.session.userRole, 'guser') && trip.created_by && trip.created_by.toLowerCase() !== req.session.username.toLowerCase()) {
       res.status(403).json({ error: 'Forbidden' });
       return;
     }

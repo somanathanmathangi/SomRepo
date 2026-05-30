@@ -130,6 +130,35 @@
         document.getElementById('userCancelBtn').style.display = 'inline-block';
         document.getElementById('userFormError').hidden = true;
         document.getElementById('userFormSuccess').hidden = true;
+
+        // Reset all role checkboxes first
+        document.querySelectorAll('input[name="userRoles"]').forEach(function (cb) { cb.checked = false; });
+
+        // Find the user row and set their current roles
+        var userRow = null;
+        try {
+            var rows = document.querySelectorAll('#userList tr');
+            rows.forEach(function (row) {
+                if (row.querySelector('td') && row.querySelector('td').textContent.trim() === username) {
+                    userRow = row;
+                }
+            });
+        } catch (e) { }
+
+        // Fetch roles from the API
+        fetch('/api/admin/users', { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (users) {
+                var u = users.find(function (x) { return x.username === username; });
+                if (u && u.role) {
+                    var roles = u.role.split(',').map(function (r) { return r.trim(); });
+                    roles.forEach(function (r) {
+                        var cb = document.querySelector('input[name="userRoles"][value="' + r + '"]');
+                        if (cb) cb.checked = true;
+                    });
+                }
+            });
+
         showUserForm();
     };
 
@@ -164,12 +193,13 @@
         document.getElementById('userCancelBtn').style.display = 'none';
         document.getElementById('userFormError').hidden = true;
         document.getElementById('userFormSuccess').hidden = true;
+        // Reset all role checkboxes
+        document.querySelectorAll('input[name="userRoles"]').forEach(function (cb) { cb.checked = false; });
     }
 
     async function saveUser() {
         const username = document.getElementById('userUsername').value.trim();
         const password = document.getElementById('userPassword').value;
-        const userRole = document.getElementById('userRole').value;
         const errEl = document.getElementById('userFormError');
         const successEl = document.getElementById('userFormSuccess');
         errEl.hidden = true;
@@ -177,9 +207,15 @@
 
         if (!username) { errEl.textContent = 'Username is required.'; errEl.hidden = false; return; }
         if (!editingUsername && !password) { errEl.textContent = 'Password is required for new users.'; errEl.hidden = false; return; }
-        if (!userRole) { errEl.textContent = 'Role is required.'; errEl.hidden = false; return; }
 
-        const body = { username: username, userRole: userRole };
+        // Collect selected roles from checkboxes
+        var selectedRoles = [];
+        document.querySelectorAll('input[name="userRoles"]:checked').forEach(function (cb) {
+            selectedRoles.push(cb.value);
+        });
+        if (selectedRoles.length === 0) { errEl.textContent = 'At least one role is required.'; errEl.hidden = false; return; }
+        var userRole = selectedRoles.join(',');
+        var body = { username: username, role: userRole };
         if (password) body.password = password;
 
         try {

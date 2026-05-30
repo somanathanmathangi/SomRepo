@@ -127,7 +127,8 @@
             <div class="user-bar">
                 <span class="user-label">Signed in as</span>
                 <span id="navUser" class="nav-user"></span>
-                <a href="/" class="btn btn-secondary btn-sm" id="manageTripsBtn" style="margin-right: 8px; text-decoration: none; display: inline-block;">Manage Trips</a>
+                <a href="/" class="btn btn-secondary btn-sm" id="manageTripsBtn"
+                    style="margin-right: 8px; text-decoration: none; display: inline-block;">Manage Trips</a>
                 <button type="button" class="btn btn-secondary btn-sm" id="logoutBtn">Log out</button>
             </div>
         </header>
@@ -143,7 +144,8 @@
                 <h3 class="section-title" style="margin: 0;">User Administration</h3>
                 <div style="display: flex; gap: 8px;">
                     <button type="button" class="btn btn-primary" id="addUserBtn">+ Add New User</button>
-                    <button type="button" class="btn-delete-sm" id="deleteAllUsersBtn" style="padding: 8px 14px; font-size: 13px;">Delete All Users</button>
+                    <button type="button" class="btn-delete-sm" id="deleteAllUsersBtn"
+                        style="padding: 8px 14px; font-size: 13px;">Delete All Users</button>
                 </div>
             </div>
 
@@ -165,13 +167,24 @@
                         </div>
                     </div>
                     <div class="form-group">
-                        <label>Role <span class="required-mark">*</span></label>
-                        <select id="userRole">
-                            <option value="">-- Select Role --</option>
-                            <option value="admin">Admin</option>
-                            <option value="approver">Approver</option>
-                            <option value="guser">Regular User (guser)</option>
-                        </select>
+                        <label>Roles <span class="required-mark">*</span></label>
+                        <div style="display: flex; gap: 14px; flex-wrap: wrap; margin-top: 6px;">
+                            <label
+                                style="display: flex; align-items: center; gap: 4px; cursor: pointer; font-weight: normal; font-size: 14px;">
+                                <input type="checkbox" name="userRoles" value="admin" style="width: auto; margin: 0;">
+                                Admin
+                            </label>
+                            <label
+                                style="display: flex; align-items: center; gap: 4px; cursor: pointer; font-weight: normal; font-size: 14px;">
+                                <input type="checkbox" name="userRoles" value="approver"
+                                    style="width: auto; margin: 0;"> Approver
+                            </label>
+                            <label
+                                style="display: flex; align-items: center; gap: 4px; cursor: pointer; font-weight: normal; font-size: 14px;">
+                                <input type="checkbox" name="userRoles" value="guser" style="width: auto; margin: 0;">
+                                Regular User
+                            </label>
+                        </div>
                     </div>
                 </div>
                 <div class="admin-form-actions">
@@ -201,7 +214,8 @@
         <section id="sectionCustomers" class="page-section hidden">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                 <h3 class="section-title" style="margin: 0;">Customer Management</h3>
-                <button type="button" class="btn-delete-sm" id="deleteAllCustomersBtn" style="padding: 8px 14px; font-size: 13px;">Delete All Customers</button>
+                <button type="button" class="btn-delete-sm" id="deleteAllCustomersBtn"
+                    style="padding: 8px 14px; font-size: 13px;">Delete All Customers</button>
             </div>
 
             <div class="admin-form" id="customerForm">
