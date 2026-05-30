@@ -141,7 +141,10 @@
         <section id="sectionUsers" class="page-section">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                 <h3 class="section-title" style="margin: 0;">User Administration</h3>
-                <button type="button" class="btn btn-primary" id="addUserBtn">+ Add New User</button>
+                <div style="display: flex; gap: 8px;">
+                    <button type="button" class="btn btn-primary" id="addUserBtn">+ Add New User</button>
+                    <button type="button" class="btn-delete-sm" id="deleteAllUsersBtn" style="padding: 8px 14px; font-size: 13px;">Delete All Users</button>
+                </div>
             </div>
 
             <div class="admin-form hidden" id="userForm">
@@ -196,7 +199,10 @@
 
         <!-- ============ CUSTOMER MANAGEMENT ============ -->
         <section id="sectionCustomers" class="page-section hidden">
-            <h3 class="section-title">Customer Management</h3>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 class="section-title" style="margin: 0;">Customer Management</h3>
+                <button type="button" class="btn-delete-sm" id="deleteAllCustomersBtn" style="padding: 8px 14px; font-size: 13px;">Delete All Customers</button>
+            </div>
 
             <div class="admin-form" id="customerForm">
                 <h4 id="customerFormTitle">Add New Customer</h4>

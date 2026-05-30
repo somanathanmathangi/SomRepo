@@ -592,6 +592,19 @@ app.delete('/api/admin/users/:username', requireAuth, requireAdmin, async (req, 
   }
 });
 
+// Delete all users except yourself (admin only)
+app.delete('/api/admin/users', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'DELETE FROM admin_users WHERE LOWER(username) != LOWER($1) RETURNING username, role',
+      [req.session.username]
+    );
+    res.json({ message: 'All users deleted (except yourself)', count: result.rowCount });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ==================== AUTH ENDPOINTS ====================
 
 async function checkActiveSession(username, req) {

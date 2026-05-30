@@ -334,6 +334,47 @@
         }
     }
 
+    // ===== DELETE ALL =====
+    async function deleteAllUsers() {
+        if (!confirm('Are you sure you want to delete ALL users (except yourself)? This cannot be undone.')) return;
+        try {
+            const res = await fetch('/api/admin/users', {
+                method: 'DELETE',
+                credentials: 'same-origin'
+            });
+            const data = await res.json().catch(function () { return {}; });
+            if (res.ok) {
+                document.getElementById('userFormSuccess').textContent = 'All users deleted (' + (data.count || 0) + ' removed).';
+                document.getElementById('userFormSuccess').hidden = false;
+                loadUsers();
+            } else {
+                alert(data.error || 'Failed to delete all users.');
+            }
+        } catch (err) {
+            alert('Error: ' + err.message);
+        }
+    }
+
+    async function deleteAllCustomers() {
+        if (!confirm('Are you sure you want to delete ALL customers? This cannot be undone.')) return;
+        try {
+            const res = await fetch('/api/customers', {
+                method: 'DELETE',
+                credentials: 'same-origin'
+            });
+            const data = await res.json().catch(function () { return {}; });
+            if (res.ok) {
+                document.getElementById('customerFormSuccess').textContent = 'All customers deleted (' + (data.count || 0) + ' removed).';
+                document.getElementById('customerFormSuccess').hidden = false;
+                loadCustomers();
+            } else {
+                alert(data.error || 'Failed to delete all customers.');
+            }
+        } catch (err) {
+            alert('Error: ' + err.message);
+        }
+    }
+
     // ===== DOM Ready =====
     document.addEventListener('DOMContentLoaded', async function () {
         if (!(await initSession())) return;
@@ -366,6 +407,10 @@
         // Customer form
         document.getElementById('customerSaveBtn').addEventListener('click', saveCustomer);
         document.getElementById('customerCancelBtn').addEventListener('click', resetCustomerForm);
+
+        // Delete All buttons
+        document.getElementById('deleteAllUsersBtn').addEventListener('click', deleteAllUsers);
+        document.getElementById('deleteAllCustomersBtn').addEventListener('click', deleteAllCustomers);
 
         // Load users by default
         loadUsers();
