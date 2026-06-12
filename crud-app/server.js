@@ -63,9 +63,9 @@ const pool = {
 
     return new Promise((resolve, reject) => {
       const isSelectOrReturning = sqliteSql.trim().toUpperCase().startsWith('SELECT') ||
-                                  sqliteSql.trim().toUpperCase().startsWith('WITH') ||
-                                  sqliteSql.toUpperCase().includes('RETURNING');
-      
+        sqliteSql.trim().toUpperCase().startsWith('WITH') ||
+        sqliteSql.toUpperCase().includes('RETURNING');
+
       if (isSelectOrReturning) {
         db.all(sqliteSql, params, (err, rows) => {
           if (err) return reject(err);
@@ -288,6 +288,15 @@ async function ensureAdminUsers() {
     const passwordHash = await bcrypt.hash(approverPassword, 10);
     await pool.query('INSERT INTO admin_users (username, password_hash, role) VALUES ($1, $2, $3)', [approverUsername, passwordHash, 'approver']);
     console.log(`SQLite: seeded approver user "${approverUsername}".`);
+  }
+
+  const guserUsername = process.env.GUSER_USERNAME || 'guser';
+  const guserPassword = process.env.GUSER_PASSWORD || 'guser';
+  const { rows: guserExists } = await pool.query('SELECT 1 FROM admin_users WHERE username = $1', [guserUsername]);
+  if (guserExists.length === 0) {
+    const passwordHash = await bcrypt.hash(guserPassword, 10);
+    await pool.query('INSERT INTO admin_users (username, password_hash, role) VALUES ($1, $2, $3)', [guserUsername, passwordHash, 'guser']);
+    console.log(`SQLite: seeded guser user "${guserUsername}".`);
   }
 }
 
