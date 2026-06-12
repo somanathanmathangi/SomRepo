@@ -375,13 +375,17 @@ async function initDb() {
 let emailTransporter = null;
 
 function getEmailConfig() {
+  const secure = process.env.EMAIL_SECURE === 'true' || process.env.EMAIL_SECURE === 'TRUE';
   return {
     host: process.env.EMAIL_HOST || 'smtp.gmail.com',
     port: parseInt(process.env.EMAIL_PORT || '587'),
-    secure: process.env.EMAIL_SECURE === 'true',
+    secure: secure,
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS
+    },
+    tls: {
+      rejectUnauthorized: false
     }
   };
 }
