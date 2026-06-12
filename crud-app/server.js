@@ -60,6 +60,7 @@ const pool = {
   query: (sql, params = []) => {
     let sqliteSql = sql.replace(/\$(\d+)/g, '?$1');
     sqliteSql = sqliteSql.replace(/\bILIKE\b/gi, 'LIKE');
+    sqliteSql = sqliteSql.replace(/\bNOW\(\)/g, "datetime('now')");
 
     return new Promise((resolve, reject) => {
       const isSelectOrReturning = sqliteSql.trim().toUpperCase().startsWith('SELECT') ||
