@@ -396,6 +396,25 @@ function getEmailTransporter() {
   return emailTransporter;
 }
 
+// Test email endpoint (for debugging SMTP connectivity)
+app.get('/api/test-email', requireAuth, requireAdmin, async (req, res) => {
+  const transporter = getEmailTransporter();
+  if (!transporter) {
+    return res.status(500).json({ error: 'Email transporter not configured. Check EMAIL_USER and EMAIL_PASS.' });
+  }
+  try {
+    const info = await transporter.sendMail({
+      from: process.env.EMAIL_FROM || 'Trip Manager <noreply@tripmanager.com>',
+      to: process.env.EMAIL_TO || 'somanathan_c@yahoo.com',
+      subject: 'Test Email from Trip Manager',
+      html: '<h2>Test Email</h2><p>Email functionality is working correctly!</p>'
+    });
+    res.json({ success: true, messageId: info.messageId, response: info.response });
+  } catch (err) {
+    res.status(500).json({ error: err.message, code: err.code, command: err.command });
+  }
+});
+
 async function sendTripEmail(trip) {
   const transporter = getEmailTransporter();
   const emailTo = process.env.EMAIL_TO || 'somanathan_c@yahoo.com';
