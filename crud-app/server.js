@@ -400,22 +400,56 @@ function getEmailTransporter() {
   return emailTransporter;
 }
 
+// Debug email config endpoint (admin only) - shows config without password
+app.get('/api/email-config', requireAuth, requireAdmin, (req, res) => {
+  const config = getEmailConfig();
+  res.json({
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    hasUser: !!config.auth.user,
+    userDomain: config.auth.user ? config.auth.user.split('@')[1] : null,
+    hasPass: !!config.auth.pass,
+    passLength: config.auth.pass ? config.auth.pass.length : 0,
+    tls: config.tls,
+    transporterExists: !!emailTransporter
+  });
+});
+
+// Test SMTP connection only (no email sent)
+app.get('/api/test-smtp', requireAuth, requireAdmin, async (req, res) => {
+  const config = getEmailConfig();
+  if (!config.auth.user || !config.auth.pass) {
+    return res.status(500).json({ error: 'EMAIL_USER or EMAIL_PASS not set', config: { host: config.host, port: config.port, secure: config.secure, hasUser: !!config.auth.user, hasPass: !!config.auth.pass } });
+  }
+  try {
+    const testTransporter = nodemailer.createTransport(config);
+    await testTransporter.verify();
+    res.json({ success: true, message: 'SMTP connection verified successfully', host: config.host, port: config.port, secure: config.secure });
+  } catch (err) {
+    res.status(500).json({ error: err.message, code: err.code, command: err.command, host: config.host, port: config.port, secure: config.secure, errno: err.errno, syscall: err.syscall, address: err.address });
+  }
+});
+
 // Test email endpoint (for debugging SMTP connectivity)
 app.get('/api/test-email', requireAuth, requireAdmin, async (req, res) => {
   const transporter = getEmailTransporter();
   if (!transporter) {
-    return res.status(500).json({ error: 'Email transporter not configured. Check EMAIL_USER and EMAIL_PASS.' });
+    return res.status(500).json({ error: 'Email transporter not configured. Check EMAIL_USER and EMAIL_PASS.', hasUser: !!process.env.EMAIL_USER, hasPass: !!process.env.EMAIL_PASS });
   }
   try {
+    console.log('Attempting to send test email...');
     const info = await transporter.sendMail({
       from: process.env.EMAIL_FROM || 'Trip Manager <noreply@tripmanager.com>',
       to: process.env.EMAIL_TO || 'somanathan_c@yahoo.com',
       subject: 'Test Email from Trip Manager',
       html: '<h2>Test Email</h2><p>Email functionality is working correctly!</p>'
     });
+    console.log('Test email sent successfully:', info.messageId);
     res.json({ success: true, messageId: info.messageId, response: info.response });
   } catch (err) {
-    res.status(500).json({ error: err.message, code: err.code, command: err.command });
+    console.error('Test email failed:', err.message, err.code, err.command);
+    res.status(500).json({ error: err.message, code: err.code, command: err.command, errno: err.errno, syscall: err.syscall, address: err.address });
   }
 });
 
