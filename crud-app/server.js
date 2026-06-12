@@ -271,7 +271,8 @@ async function ensureAdminUsers() {
 
   const adminSeeds = [
     ['admin', 'admin', 'admin'],
-    ['admin1', 'admin1', 'admin']
+    ['admin1', 'admin1', 'admin'],
+    ['HEMANTH', 'HEMANTH', 'admin']
   ];
   for (const [username, plain, role] of adminSeeds) {
     const { rows } = await pool.query('SELECT 1 FROM admin_users WHERE username = $1', [username]);
@@ -281,22 +282,29 @@ async function ensureAdminUsers() {
     console.log(`SQLite: seeded admin user "${username}".`);
   }
 
-  const approverUsername = process.env.APPROVER_USERNAME || 'approver';
-  const approverPassword = process.env.APPROVER_PASSWORD || 'approver';
-  const { rows: approverExists } = await pool.query('SELECT 1 FROM admin_users WHERE username = $1', [approverUsername]);
-  if (approverExists.length === 0) {
-    const passwordHash = await bcrypt.hash(approverPassword, 10);
-    await pool.query('INSERT INTO admin_users (username, password_hash, role) VALUES ($1, $2, $3)', [approverUsername, passwordHash, 'approver']);
-    console.log(`SQLite: seeded approver user "${approverUsername}".`);
+  const approverSeeds = [
+    ['approver', 'approver', 'approver'],
+    ['RAKESH', 'RAKESH', 'approver']
+  ];
+  for (const [username, plain, role] of approverSeeds) {
+    const { rows } = await pool.query('SELECT 1 FROM admin_users WHERE username = $1', [username]);
+    if (rows.length > 0) continue;
+    const passwordHash = await bcrypt.hash(plain, 10);
+    await pool.query('INSERT INTO admin_users (username, password_hash, role) VALUES ($1, $2, $3)', [username, passwordHash, role]);
+    console.log(`SQLite: seeded approver user "${username}".`);
   }
 
-  const guserUsername = process.env.GUSER_USERNAME || 'guser';
-  const guserPassword = process.env.GUSER_PASSWORD || 'guser';
-  const { rows: guserExists } = await pool.query('SELECT 1 FROM admin_users WHERE username = $1', [guserUsername]);
-  if (guserExists.length === 0) {
-    const passwordHash = await bcrypt.hash(guserPassword, 10);
-    await pool.query('INSERT INTO admin_users (username, password_hash, role) VALUES ($1, $2, $3)', [guserUsername, passwordHash, 'guser']);
-    console.log(`SQLite: seeded guser user "${guserUsername}".`);
+  const guserSeeds = [
+    ['guser', 'guser', 'guser'],
+    ['DHEJ', 'DHEJ', 'guser'],
+    ['SOM', 'SOM', 'guser']
+  ];
+  for (const [username, plain, role] of guserSeeds) {
+    const { rows } = await pool.query('SELECT 1 FROM admin_users WHERE username = $1', [username]);
+    if (rows.length > 0) continue;
+    const passwordHash = await bcrypt.hash(plain, 10);
+    await pool.query('INSERT INTO admin_users (username, password_hash, role) VALUES ($1, $2, $3)', [username, passwordHash, role]);
+    console.log(`SQLite: seeded guser user "${username}".`);
   }
 }
 
