@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
-const { Pool } = require('pg');
+const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const multer = require('multer');
 const nodemailer = require('nodemailer');
@@ -49,13 +49,40 @@ app.use(
   })
 );
 
-const dbUrl = process.env.DATABASE_URL || '';
-const needsSSL = dbUrl.includes('render.com') && !dbUrl.includes('.internal');
+const dbPath = path.join(__dirname, 'trips.db');
+const db = new sqlite3.Database(dbPath);
 
-const pool = new Pool({
-  connectionString: dbUrl,
-  ssl: needsSSL ? { rejectUnauthorized: false } : false
+db.serialize(() => {
+  db.run('PRAGMA foreign_keys = ON;');
 });
+
+const pool = {
+  query: (sql, params = []) => {
+    let sqliteSql = sql.replace(/\$(\d+)/g, '?$1');
+    sqliteSql = sqliteSql.replace(/\bILIKE\b/gi, 'LIKE');
+
+    return new Promise((resolve, reject) => {
+      const isSelectOrReturning = sqliteSql.trim().toUpperCase().startsWith('SELECT') ||
+                                  sqliteSql.trim().toUpperCase().startsWith('WITH') ||
+                                  sqliteSql.toUpperCase().includes('RETURNING');
+      
+      if (isSelectOrReturning) {
+        db.all(sqliteSql, params, (err, rows) => {
+          if (err) return reject(err);
+          resolve({ rows, rowCount: rows.length });
+        });
+      } else {
+        db.run(sqliteSql, params, function (err) {
+          if (err) return reject(err);
+          resolve({
+            rows: [],
+            rowCount: this.changes
+          });
+        });
+      }
+    });
+  }
+};
 
 function tsToIso(v) {
   if (v == null) return null;
@@ -154,8 +181,8 @@ function requireRegularUser(req, res, next) {
 async function ensureSupportingDocsTable() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS supporting_docs (
-      id SERIAL PRIMARY KEY,
-      trip_invoice_number TEXT NOT NULL REFERENCES trips(yantriki_invoice_number),
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      trip_invoice_number TEXT NOT NULL REFERENCES trips(yantriki_invoice_number) ON DELETE CASCADE,
       doc_date TEXT NOT NULL,
       description TEXT NOT NULL,
       bill_id TEXT NOT NULL,
@@ -164,12 +191,12 @@ async function ensureSupportingDocsTable() {
       page_no INTEGER NOT NULL,
       file_name TEXT,
       file_type TEXT,
-      file_content BYTEA,
+      file_content BLOB,
       created_by TEXT,
-      created_date TIMESTAMPTZ DEFAULT NOW()
+      created_date TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
-  console.log('PostgreSQL: supporting_docs table ensured.');
+  console.log('SQLite: supporting_docs table ensured.');
 }
 
 async function ensureActiveSessionsTable() {
@@ -179,38 +206,38 @@ async function ensureActiveSessionsTable() {
       session_id TEXT NOT NULL
     )
   `);
-  console.log('PostgreSQL: active_sessions table ensured.');
+  console.log('SQLite: active_sessions table ensured.');
 }
 
 async function ensureTripAuditColumns() {
   const { rows } = await pool.query(`
-    SELECT EXISTS (
-      SELECT 1 FROM information_schema.tables
-      WHERE table_schema = 'public' AND table_name = 'trips'
-    ) AS exists
+    SELECT name FROM sqlite_master WHERE type='table' AND name='trips'
   `);
-  if (!rows[0] || !rows[0].exists) return;
+  if (rows.length === 0) return;
 
   const addIfMissing = async (colName, sqlType, defaultValue) => {
-    const c = await pool.query(
-      `SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'trips' AND column_name = $1`,
-      [colName]
-    );
-    if (c.rows.length === 0) {
+    const info = await new Promise((resolve, reject) => {
+      db.all(`PRAGMA table_info(trips)`, (err, cols) => {
+        if (err) return reject(err);
+        resolve(cols);
+      });
+    });
+    const exists = info.some(c => c.name.toLowerCase() === colName.toLowerCase());
+    if (!exists) {
       const defaultClause = defaultValue ? ` DEFAULT ${defaultValue}` : '';
       await pool.query(`ALTER TABLE trips ADD COLUMN ${colName} ${sqlType}${defaultClause}`);
     }
   };
 
   await addIfMissing('created_by', 'TEXT');
-  await addIfMissing('created_date', 'TIMESTAMPTZ');
+  await addIfMissing('created_date', 'TEXT');
   await addIfMissing('updated_by', 'TEXT');
-  await addIfMissing('updated_date', 'TIMESTAMPTZ');
+  await addIfMissing('updated_date', 'TEXT');
   await addIfMissing('deleted_by', 'TEXT');
-  await addIfMissing('deleted_date', 'TIMESTAMPTZ');
+  await addIfMissing('deleted_date', 'TEXT');
   await addIfMissing('status', 'TEXT', "'pending'");
   await addIfMissing('approved_by', 'TEXT');
-  await addIfMissing('approved_date', 'TIMESTAMPTZ');
+  await addIfMissing('approved_date', 'TEXT');
   await addIfMissing('rejection_reason', 'TEXT');
   await addIfMissing('wo_start_date', 'TEXT');
   await addIfMissing('wo_end_date', 'TEXT');
@@ -226,8 +253,6 @@ async function ensureAdminUsers() {
     )
   `);
 
-
-
   const adminSeeds = [
     ['admin', 'admin', 'admin'],
     ['admin1', 'admin1', 'admin']
@@ -237,7 +262,7 @@ async function ensureAdminUsers() {
     if (rows.length > 0) continue;
     const passwordHash = await bcrypt.hash(plain, 10);
     await pool.query('INSERT INTO admin_users (username, password_hash, role) VALUES ($1, $2, $3)', [username, passwordHash, role]);
-    console.log(`PostgreSQL: seeded admin user "${username}".`);
+    console.log(`SQLite: seeded admin user "${username}".`);
   }
 
   const approverUsername = process.env.APPROVER_USERNAME || 'approver';
@@ -246,7 +271,7 @@ async function ensureAdminUsers() {
   if (approverExists.length === 0) {
     const passwordHash = await bcrypt.hash(approverPassword, 10);
     await pool.query('INSERT INTO admin_users (username, password_hash, role) VALUES ($1, $2, $3)', [approverUsername, passwordHash, 'approver']);
-    console.log(`PostgreSQL: seeded approver user "${approverUsername}".`);
+    console.log(`SQLite: seeded approver user "${approverUsername}".`);
   }
 }
 
@@ -265,14 +290,14 @@ async function initDb() {
       travel_start_date TEXT NOT NULL,
       travel_end_date TEXT NOT NULL,
       created_by TEXT,
-      created_date TIMESTAMPTZ,
+      created_date TEXT,
       updated_by TEXT,
-      updated_date TIMESTAMPTZ,
+      updated_date TEXT,
       deleted_by TEXT,
-      deleted_date TIMESTAMPTZ,
+      deleted_date TEXT,
       status TEXT DEFAULT 'pending',
       approved_by TEXT,
-      approved_date TIMESTAMPTZ,
+      approved_date TEXT,
       rejection_reason TEXT,
       wo_start_date TEXT,
       wo_end_date TEXT,
@@ -281,28 +306,32 @@ async function initDb() {
   `;
   try {
     const { rows: existsRows } = await pool.query(`
-      SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'trips') AS exists
+      SELECT name FROM sqlite_master WHERE type='table' AND name='trips'
     `);
-    const tableExists = Boolean(existsRows[0] && existsRows[0].exists);
+    const tableExists = existsRows.length > 0;
 
     if (!tableExists) {
       await pool.query(createSql);
-      console.log('PostgreSQL: trips table did not exist; created with new schema.');
+      console.log('SQLite: trips table did not exist; created with new schema.');
       return;
     }
 
-    const { rows: cols } = await pool.query(`
-      SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'trips' AND column_name = 'yantriki_invoice_number'
-    `);
-    if (cols.length > 0) {
-      console.log('PostgreSQL: trips table already on new schema.');
+    const info = await new Promise((resolve, reject) => {
+      db.all(`PRAGMA table_info(trips)`, (err, cols) => {
+        if (err) return reject(err);
+        resolve(cols);
+      });
+    });
+    const hasCol = info.some(c => c.name.toLowerCase() === 'yantriki_invoice_number');
+    if (hasCol) {
+      console.log('SQLite: trips table already on new schema.');
       return;
     }
 
-    await pool.query('DROP TABLE IF EXISTS supporting_docs CASCADE');
-    await pool.query('DROP TABLE IF EXISTS trips CASCADE');
+    await pool.query('DROP TABLE IF EXISTS supporting_docs');
+    await pool.query('DROP TABLE IF EXISTS trips');
     await pool.query(createSql);
-    console.log('PostgreSQL: dropped legacy tables and created new schema.');
+    console.log('SQLite: dropped legacy tables and created new schema.');
   } catch (err) {
     console.error('Error initializing database', err.stack);
   }

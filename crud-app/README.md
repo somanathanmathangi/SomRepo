@@ -5,7 +5,7 @@ A Node.js/Express web application for managing trip records with file attachment
 ## Features
 
 ### 1. **File Upload & Storage**
-- Files are stored directly in the PostgreSQL database (BYTEA format)
+- Files are stored directly in the SQLite database (BLOB format)
 - Only PDF files are accepted (max 10MB)
 - Files can be downloaded directly from the application
 - No external storage dependencies (SharePoint removed)
@@ -39,7 +39,7 @@ A Node.js/Express web application for managing trip records with file attachment
 ## Technology Stack
 
 - **Backend**: Node.js, Express.js
-- **Database**: PostgreSQL
+- **Database**: SQLite (`sqlite3`)
 - **Authentication**: express-session with bcrypt password hashing
 - **File Upload**: Multer (memory storage)
 - **Email**: Nodemailer
@@ -61,12 +61,11 @@ A Node.js/Express web application for managing trip records with file attachment
 3. **Configure environment variables**
    ```bash
    cp .env.example .env
-   # Edit .env with your configuration
+   # Edit .env with your session/email settings (no database URL required!)
    ```
 
-4. **Set up PostgreSQL database**
-   - Create a database named `tripdb` (or your preferred name)
-   - Update `DATABASE_URL` in `.env`
+4. **Database Setup**
+   - SQLite is configured automatically. A local database file named `trips.db` will be created in the root directory upon starting the application. No additional database installation or setup is needed!
 
 5. **Start the application**
    ```bash
@@ -82,8 +81,7 @@ A Node.js/Express web application for managing trip records with file attachment
 ### Environment Variables (.env)
 
 ```env
-# Database
-DATABASE_URL=postgresql://username:password@localhost:5432/tripdb
+# Database (SQLite is configured automatically and runs locally out of trips.db)
 
 # Session
 SESSION_SECRET=your-session-secret-key-here
@@ -114,7 +112,7 @@ NODE_ENV=development
 - `customer_name`, `customer_location`, `po_order`, `po_date`
 - `traveller_name`, `travel_route`, `wo_number`, `wo_date`
 - `travel_start_date`, `travel_end_date`
-- `file_name`, `file_type`, `file_content` (BYTEA) - File storage
+- `file_name`, `file_type`, `file_content` (BLOB) - File storage
 - `status` (TEXT) - 'pending', 'approved', 'rejected'
 - `approved_by`, `approved_date` - Approval tracking
 - `rejection_reason` (TEXT) - Reason for rejection
@@ -189,7 +187,7 @@ When a trip is created or updated, an HTML email is sent to the configured `EMAI
 
 ## File Storage
 
-Files are stored as binary data (BYTEA) in PostgreSQL:
+Files are stored as binary data (BLOB) in SQLite:
 - No file system dependencies
 - Automatic cleanup when trips are deleted
 - Direct download from database
