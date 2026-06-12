@@ -478,6 +478,17 @@ async function ensureCustomersTable() {
     )
   `);
   console.log('SQLite: customers table ensured.');
+
+  const customerSeeds = [
+    ['ABB', 'BANGALORE'],
+    ['SALEM STEELS', 'SALEM']
+  ];
+  for (const [customerName, customerLocation] of customerSeeds) {
+    const { rows } = await pool.query('SELECT 1 FROM customers WHERE LOWER(customer_name) = LOWER($1) AND LOWER(customer_location) = LOWER($2)', [customerName, customerLocation]);
+    if (rows.length > 0) continue;
+    await pool.query('INSERT INTO customers (customer_name, customer_location) VALUES ($1, $2)', [customerName, customerLocation]);
+    console.log(`SQLite: seeded customer "${customerName}" at "${customerLocation}".`);
+  }
 }
 
 // Get all customers
