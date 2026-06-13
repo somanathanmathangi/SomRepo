@@ -371,7 +371,53 @@ async function initDb() {
   }
 }
 
-// Email transporter setup
+// ==================== EMAIL SETUP (Resend API + SMTP fallback) ====================
+
+// Send email via Resend API (HTTPS - works on Render free tier)
+async function sendViaResend(to, subject, html) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) throw new Error('RESEND_API_KEY not set');
+
+  const fromEmail = process.env.RESEND_FROM || process.env.EMAIL_USER || 'Trip Manager <onboarding@resend.dev>';
+  const https = require('https');
+
+  const payload = JSON.stringify({
+    from: fromEmail,
+    to: [to],
+    subject: subject,
+    html: html
+  });
+
+  return new Promise((resolve, reject) => {
+    const req = https.request({
+      hostname: 'api.resend.com',
+      path: '/emails',
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload)
+      }
+    }, (res) => {
+      let body = '';
+      res.on('data', (chunk) => { body += chunk; });
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          const parsed = JSON.parse(body);
+          console.log('Email sent via Resend:', parsed.id);
+          resolve(parsed);
+        } else {
+          reject(new Error(`Resend API error ${res.statusCode}: ${body}`));
+        }
+      });
+    });
+    req.on('error', reject);
+    req.write(payload);
+    req.end();
+  });
+}
+
+// SMTP fallback (for local development)
 let emailTransporter = null;
 
 function getEmailConfig() {
@@ -404,18 +450,42 @@ function getEmailTransporter() {
   return emailTransporter;
 }
 
-// Debug email config endpoint (admin only) - shows config without password
+// Unified send function: tries Resend first, falls back to SMTP
+async function sendEmail(to, subject, html) {
+  // Try Resend API first (works on Render)
+  if (process.env.RESEND_API_KEY) {
+    try {
+      const result = await sendViaResend(to, subject, html);
+      return { method: 'resend', result };
+    } catch (err) {
+      console.error('Resend API failed, trying SMTP:', err.message);
+    }
+  }
+  // Fallback to SMTP (works locally)
+  const transporter = getEmailTransporter();
+  if (transporter) {
+    const info = await transporter.sendMail({
+      from: process.env.EMAIL_FROM || 'Trip Manager <noreply@tripmanager.com>',
+      to: to,
+      subject: subject,
+      html: html
+    });
+    return { method: 'smtp', result: info };
+  }
+  throw new Error('No email method available. Set RESEND_API_KEY or EMAIL_USER/EMAIL_PASS.');
+}
+
+// Debug email config endpoint (admin only)
 app.get('/api/email-config', requireAuth, requireAdmin, (req, res) => {
   const config = getEmailConfig();
   res.json({
+    method: process.env.RESEND_API_KEY ? 'Resend API' : 'SMTP',
+    hasResendKey: !!process.env.RESEND_API_KEY,
     host: config.host,
     port: config.port,
     secure: config.secure,
     hasUser: !!config.auth.user,
-    userDomain: config.auth.user ? config.auth.user.split('@')[1] : null,
     hasPass: !!config.auth.pass,
-    passLength: config.auth.pass ? config.auth.pass.length : 0,
-    tls: config.tls,
     transporterExists: !!emailTransporter
   });
 });
@@ -424,41 +494,31 @@ app.get('/api/email-config', requireAuth, requireAdmin, (req, res) => {
 app.get('/api/test-smtp', requireAuth, requireAdmin, async (req, res) => {
   const config = getEmailConfig();
   if (!config.auth.user || !config.auth.pass) {
-    return res.status(500).json({ error: 'EMAIL_USER or EMAIL_PASS not set', config: { host: config.host, port: config.port, secure: config.secure, hasUser: !!config.auth.user, hasPass: !!config.auth.pass } });
+    return res.status(500).json({ error: 'EMAIL_USER or EMAIL_PASS not set', config: { host: config.host, port: config.port, secure: config.secure } });
   }
   try {
     const testTransporter = nodemailer.createTransport(config);
     await testTransporter.verify();
-    res.json({ success: true, message: 'SMTP connection verified successfully', host: config.host, port: config.port, secure: config.secure });
+    res.json({ success: true, message: 'SMTP connection verified', host: config.host, port: config.port });
   } catch (err) {
-    res.status(500).json({ error: err.message, code: err.code, command: err.command, host: config.host, port: config.port, secure: config.secure, errno: err.errno, syscall: err.syscall, address: err.address });
+    res.status(500).json({ error: err.message, code: err.code, host: config.host, port: config.port });
   }
 });
 
-// Test email endpoint (for debugging SMTP connectivity)
+// Test email endpoint
 app.get('/api/test-email', requireAuth, requireAdmin, async (req, res) => {
-  const transporter = getEmailTransporter();
-  if (!transporter) {
-    return res.status(500).json({ error: 'Email transporter not configured. Check EMAIL_USER and EMAIL_PASS.', hasUser: !!process.env.EMAIL_USER, hasPass: !!process.env.EMAIL_PASS });
-  }
   try {
-    console.log('Attempting to send test email...');
-    const info = await transporter.sendMail({
-      from: process.env.EMAIL_FROM || 'Trip Manager <noreply@tripmanager.com>',
-      to: process.env.EMAIL_TO || 'somanathan_c@yahoo.com',
-      subject: 'Test Email from Trip Manager',
-      html: '<h2>Test Email</h2><p>Email functionality is working correctly!</p>'
-    });
-    console.log('Test email sent successfully:', info.messageId);
-    res.json({ success: true, messageId: info.messageId, response: info.response });
+    const to = process.env.EMAIL_TO || 'somanathan_c@yahoo.com';
+    const result = await sendEmail(to, 'Test Email from Trip Manager', '<h2>Test Email</h2><p>Email functionality is working correctly!</p>');
+    res.json({ success: true, method: result.method, id: result.result?.id || result.result?.messageId });
   } catch (err) {
-    console.error('Test email failed:', err.message, err.code, err.command);
-    res.status(500).json({ error: err.message, code: err.code, command: err.command, errno: err.errno, syscall: err.syscall, address: err.address });
+    res.status(500).json({ error: err.message, code: err.code });
   }
 });
+
+// ==================== TRIP EMAIL ====================
 
 async function sendTripEmail(trip) {
-  const transporter = getEmailTransporter();
   const emailTo = process.env.EMAIL_TO || 'somanathan_c@yahoo.com';
 
   let actionText = 'Submitted for Approval';
@@ -494,20 +554,12 @@ async function sendTripEmail(trip) {
     <p style="color: #666; font-size: 12px;">This is an automated email from Trip Manager System.</p>
   `;
 
-  if (transporter) {
-    try {
-      await transporter.sendMail({
-        from: process.env.EMAIL_FROM || 'Trip Manager <noreply@tripmanager.com>',
-        to: emailTo,
-        subject: subject,
-        html: html
-      });
-      console.log(`Email sent to ${emailTo} for trip ${trip.yantrikiInvoiceNumber}`);
-    } catch (err) {
-      console.error('Error sending email:', err.message);
-    }
-  } else {
-    console.log('=== EMAIL NOTIFICATION (SMTP not configured) ===');
+  try {
+    const result = await sendEmail(emailTo, subject, html);
+    console.log(`Email sent to ${emailTo} for trip ${trip.yantrikiInvoiceNumber} via ${result.method}`);
+  } catch (err) {
+    console.error('Error sending email:', err.message);
+    console.log('=== EMAIL NOTIFICATION (fallback - SMTP not configured) ===');
     console.log(`To: ${emailTo}`);
     console.log(`Subject: ${subject}`);
     console.log('===============================================');
