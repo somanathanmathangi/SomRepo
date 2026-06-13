@@ -243,6 +243,7 @@
         var currentUser = null;
         var role = '';
         var isApprover = false;
+        var isLocked = false;
 
         function fmtDate(d) { if (!d) return ''; var dt = new Date(d); if (isNaN(dt)) return d; return dt.toISOString().split('T')[0]; }
         function fmtCurr(v) { return '₹ ' + (Number(v) || 0).toFixed(2); }
@@ -278,8 +279,8 @@
                 var displayStatus = trip.workflowStatus || trip.status || 'pending';
                 document.getElementById('sdTripStatus').textContent = displayStatus.charAt(0).toUpperCase() + displayStatus.slice(1);
                 document.getElementById('sdTripStatus').className = 'status-badge status-' + displayStatus.toLowerCase().replace(/\s+/g, '-');
-                var locked = trip.submittedForApproval || trip.status === 'approved';
-                if (locked) {
+                isLocked = trip.submittedForApproval || trip.status === 'approved';
+                if (isLocked) {
                     var banner = document.getElementById('sdReadonlyBanner');
                     if (trip.status === 'approved') {
                         banner.innerHTML = '&#128274; This trip has been approved. Documents are in read-only mode.';
@@ -289,7 +290,14 @@
                     banner.classList.remove('hidden');
                     document.getElementById('sdAddNewBtn').style.display = 'none';
                 }
-                if (isApprover) document.getElementById('sdSubmitApprovalBtn').style.display = 'none';
+                // Disable Submit for Approval for approver role
+                if (isApprover) {
+                    var submitBtn = document.getElementById('sdSubmitApprovalBtn');
+                    submitBtn.disabled = true;
+                    submitBtn.style.opacity = '0.5';
+                    submitBtn.style.cursor = 'not-allowed';
+                    submitBtn.title = 'Approvers cannot submit trips for approval';
+                }
                 loadDocuments();
             } catch (e) { document.getElementById('tripInfo').textContent = 'Error: ' + e.message; }
         }
@@ -304,12 +312,41 @@
             } catch (e) { console.error(e); }
         }
 
+        function updateSubmitApprovalBtnState() {
+            var btn = document.getElementById('sdSubmitApprovalBtn');
+            if (!btn) return;
+            // Don't override if already submitted
+            if (btn.textContent === 'Submitted') return;
+            if (isApprover) return;
+            // Disable if trip is already submitted or approved
+            if (isLocked) {
+                btn.disabled = true;
+                btn.style.opacity = '0.5';
+                btn.style.cursor = 'not-allowed';
+                btn.title = 'Trip has been submitted for approval';
+                return;
+            }
+            // Enable only if at least 1 document exists
+            var hasDocs = sdDocuments && sdDocuments.length > 0;
+            btn.disabled = !hasDocs;
+            if (!hasDocs) {
+                btn.style.opacity = '0.5';
+                btn.style.cursor = 'not-allowed';
+                btn.title = 'Upload at least 1 document before submitting';
+            } else {
+                btn.style.opacity = '1';
+                btn.style.cursor = 'pointer';
+                btn.title = '';
+            }
+        }
+
         function renderDocuments() {
             var tb = document.getElementById('sdDocList');
             if (!tb) return;
             if (!sdDocuments || !sdDocuments.length) {
                 tb.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#999;">No documents added yet.</td></tr>';
                 document.getElementById('sdTotalAmount').textContent = '₹ 0.00';
+                updateSubmitApprovalBtnState();
                 return;
             }
             var h = '', total = 0;
@@ -335,6 +372,7 @@
             });
             tb.innerHTML = h;
             document.getElementById('sdTotalAmount').textContent = fmtCurr(total);
+            updateSubmitApprovalBtnState();
         }
 
         document.getElementById('sdAddNewBtn').addEventListener('click', function () {
@@ -433,7 +471,6 @@
         (function () {
             var btn = document.getElementById('sdSubmitApprovalBtn');
             if (!btn) return;
-            if (isApprover) { btn.style.display = 'none'; return; }
 
             btn.addEventListener('click', async function () {
                 if (!currentTripId) { alert('No trip selected.'); return; }
@@ -457,7 +494,13 @@
                         return;
                     }
                     alert('Trip submitted for approval successfully! An email notification has been sent.');
-                    window.location.href = '/';
+                    btn.textContent = 'Submitted';
+                    btn.style.opacity = '0.5';
+                    btn.style.cursor = 'not-allowed';
+                    btn.title = 'Trip has been submitted for approval';
+                    // Keep button disabled after successful submission
+                    // The page reload will show the locked readonly state
+                    setTimeout(function () { window.location.reload(); }, 500);
                 } catch (err) {
                     alert('Network error: ' + err.message);
                     btn.disabled = false;
